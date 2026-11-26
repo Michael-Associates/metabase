@@ -1,5 +1,7 @@
 import type { VisualizationSettings } from "metabase-types/api";
 
+import { readBooleanSetting, readStringSetting } from "../MaShared/settings";
+
 import { HEATMAP_SETTING_KEYS } from "./constants";
 
 export type HeatmapColumnNames = {
@@ -22,9 +24,9 @@ export function getHeatmapColumnNames(
   settings: VisualizationSettings,
 ): HeatmapColumnNames {
   return {
-    row: readString(settings, HEATMAP_SETTING_KEYS.rows),
-    column: readString(settings, HEATMAP_SETTING_KEYS.columns),
-    value: readString(settings, HEATMAP_SETTING_KEYS.value),
+    row: readStringSetting(settings, HEATMAP_SETTING_KEYS.rows),
+    column: readStringSetting(settings, HEATMAP_SETTING_KEYS.columns),
+    value: readStringSetting(settings, HEATMAP_SETTING_KEYS.value),
   };
 }
 
@@ -35,24 +37,10 @@ export function getHeatmapDisplayOptions(
   settings: VisualizationSettings,
 ): HeatmapDisplayOptions {
   return {
-    color: readString(settings, HEATMAP_SETTING_KEYS.color),
-    showValues: readBoolean(settings, HEATMAP_SETTING_KEYS.showValues) ?? true,
-    showLegend: readBoolean(settings, HEATMAP_SETTING_KEYS.showLegend) ?? true,
+    color: readStringSetting(settings, HEATMAP_SETTING_KEYS.color),
+    showValues:
+      readBooleanSetting(settings, HEATMAP_SETTING_KEYS.showValues) ?? true,
+    showLegend:
+      readBooleanSetting(settings, HEATMAP_SETTING_KEYS.showLegend) ?? true,
   };
-}
-
-function readString(
-  settings: VisualizationSettings,
-  key: string,
-): string | undefined {
-  const value: unknown = settings[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function readBoolean(
-  settings: VisualizationSettings,
-  key: string,
-): boolean | undefined {
-  const value: unknown = settings[key];
-  return typeof value === "boolean" ? value : undefined;
 }

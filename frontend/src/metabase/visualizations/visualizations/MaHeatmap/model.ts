@@ -1,12 +1,17 @@
-import { isDate } from "metabase-lib/v1/types/utils/isa";
 import type { DatasetColumn, RowValue, RowValues } from "metabase-types/api";
+
+import {
+  type AxisItem,
+  getAxisItem,
+  getAxisKey,
+  getAxisSortOptions,
+  sortAxisItems,
+} from "../MaShared/axis";
+import { type ChartColumn, findChartColumn } from "../MaShared/columns";
 
 import type { HeatmapColumnNames } from "./settings";
 
-export type HeatmapColumn = {
-  column: DatasetColumn;
-  index: number;
-};
+export type HeatmapColumn = ChartColumn;
 
 export type HeatmapColumns = {
   row: HeatmapColumn;
@@ -14,10 +19,7 @@ export type HeatmapColumns = {
   value: HeatmapColumn;
 };
 
-export type HeatmapAxisItem = {
-  key: string;
-  value: RowValue;
-};
+export type HeatmapAxisItem = AxisItem;
 
 export type HeatmapCell = {
   value: number;
@@ -39,11 +41,6 @@ export type HeatmapSize = {
   hasValues: boolean;
 };
 
-type AxisSortOptions = {
-  isTemporal: boolean;
-  sortsText: boolean;
-};
-
 /**
  * Resolves the row, column and value columns of a heatmap.
  * Returns `null` when any of them is unset, missing from the result, or when
@@ -53,9 +50,9 @@ export function getHeatmapColumns(
   cols: DatasetColumn[],
   names: HeatmapColumnNames,
 ): HeatmapColumns | null {
-  const row = findColumn(cols, names.row);
-  const column = findColumn(cols, names.column);
-  const value = findColumn(cols, names.value);
+  const row = findChartColumn(cols, names.row);
+  const column = findChartColumn(cols, names.column);
+  const value = findChartColumn(cols, names.value);
 
   if (row == null || column == null || value == null) {
     return null;
@@ -65,17 +62,6 @@ export function getHeatmapColumns(
   }
 
   return { row, column, value };
-}
-
-function findColumn(
-  cols: DatasetColumn[],
-  name: string | undefined,
-): HeatmapColumn | null {
-  if (name == null) {
-    return null;
-  }
-  const index = cols.findIndex((col) => col.name === name);
-  return index >= 0 ? { column: cols[index], index } : null;
 }
 
 /**
@@ -174,25 +160,8 @@ function isCellValue(value: RowValue): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function getAxisKey(value: RowValue): string {
-  return value !== null && typeof value === "object"
-    ? `object:${JSON.stringify(value)}`
-    : `${typeof value}:${String(value)}`;
-}
-
-function getAxisItem(value: RowValue): HeatmapAxisItem {
-  return { key: getAxisKey(value), value };
-}
-
 function getCellKey(rowKey: string, columnKey: string) {
   return JSON.stringify([rowKey, columnKey]);
-}
-
-function getAxisSortOptions(column: DatasetColumn): AxisSortOptions {
-  return {
-    isTemporal: isDate(column),
-    sortsText: column.source === "breakout",
-  };
 }
 
 function getValueExtent(cells: Iterable<HeatmapCell>): [number, number] | null {
@@ -204,70 +173,4 @@ function getValueExtent(cells: Iterable<HeatmapCell>): [number, number] | null {
         : [Math.min(extent[0], value), Math.max(extent[1], value)];
   }
   return extent;
-}
-
-type SortableAxisItem<T> = {
-  item: HeatmapAxisItem;
-  sortValue: T;
-};
-
-/**
- * Orders axis items: numbers and dates ascending, text alphabetically when
- * `sortsText` is set, anything else in the order given. Empty values go last.
- */
-export function sortAxisItems(
-  items: HeatmapAxisItem[],
-  { isTemporal, sortsText }: AxisSortOptions,
-): HeatmapAxisItem[] {
-  const presentItems = items.filter((item) => item.value !== null);
-  const emptyItems = items.filter((item) => item.value === null);
-  const sortedItems =
-    sortByNumber(presentItems, isTemporal) ??
-    (sortsText ? sortByText(presentItems) : null) ??
-    presentItems;
-  return [...sortedItems, ...emptyItems];
-}
-
-function sortByNumber(
-  items: HeatmapAxisItem[],
-  isTemporal: boolean,
-): HeatmapAxisItem[] | null {
-  const sortableItems: SortableAxisItem<number>[] = [];
-  for (const item of items) {
-    const sortValue = getNumericSortValue(item.value, isTemporal);
-    if (sortValue == null) {
-      return null;
-    }
-    sortableItems.push({ item, sortValue });
-  }
-  return sortableItems
-    .sort((left, right) => left.sortValue - right.sortValue)
-    .map(({ item }) => item);
-}
-
-function sortByText(items: HeatmapAxisItem[]): HeatmapAxisItem[] | null {
-  const sortableItems: SortableAxisItem<string>[] = [];
-  for (const item of items) {
-    if (typeof item.value !== "string") {
-      return null;
-    }
-    sortableItems.push({ item, sortValue: item.value });
-  }
-  return sortableItems
-    .sort((left, right) => left.sortValue.localeCompare(right.sortValue))
-    .map(({ item }) => item);
-}
-
-function getNumericSortValue(
-  value: RowValue,
-  isTemporal: boolean,
-): number | null {
-  if (typeof value === "number") {
-    return value;
-  }
-  if (isTemporal && typeof value === "string") {
-    const time = Date.parse(value);
-    return Number.isNaN(time) ? null : time;
-  }
-  return null;
 }

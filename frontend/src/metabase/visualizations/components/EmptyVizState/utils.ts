@@ -97,6 +97,15 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
       return t`E.g., Count of orders grouped by Year`;
     },
   },
+  ma_flow: {
+    imgSrc: sankeyImage,
+    get primaryText() {
+      return t`Then pick a metric and two or more columns to group by, one for each step.`;
+    },
+    get secondaryText() {
+      return t`E.g., Count of leads grouped by Lead type, Booking type and Outcome`;
+    },
+  },
   ma_heatmap: {
     imgSrc: pivotImage,
     get primaryText() {

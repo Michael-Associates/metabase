@@ -4,12 +4,7 @@ import {
   createMockNumericColumn,
 } from "metabase-types/api/mocks";
 
-import {
-  getHeatmapColumns,
-  getHeatmapModel,
-  getHeatmapSize,
-  sortAxisItems,
-} from "./model";
+import { getHeatmapColumns, getHeatmapModel, getHeatmapSize } from "./model";
 
 const DAY_COLUMN = createMockNumericColumn({
   name: "day_of_week",
@@ -223,20 +218,6 @@ describe("getHeatmapModel", () => {
     const model = setup({ rows: [[1, "Ana", null]] });
 
     expect(model.valueExtent).toBeNull();
-  });
-});
-
-describe("sortAxisItems", () => {
-  it("keeps the given order when numbers and text are mixed", () => {
-    const items = [
-      { key: "a", value: 2 },
-      { key: "b", value: "x" },
-      { key: "c", value: 1 },
-    ];
-
-    expect(
-      sortAxisItems(items, { isTemporal: false, sortsText: true }),
-    ).toEqual(items);
   });
 });
 

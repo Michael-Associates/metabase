@@ -13,7 +13,12 @@ staging, runs Metabase's official image and never this fork.
 
 - `frontend/src/metabase/visualizations/visualizations/MaHeatmap/`: the
   Heatmap chart (rows by columns, colored by a number).
-- Small registrations in Metabase's own files so the chart shows up in the
+- `frontend/src/metabase/visualizations/visualizations/MaFlow/`: the Flow
+  chart, a multi-step sankey (journeys through two to eight steps, bands
+  colored by a chosen step, hover to trace).
+- `frontend/src/metabase/visualizations/visualizations/MaShared/`: helpers
+  both charts use.
+- Small registrations in Metabase's own files so the charts show up in the
   chart picker: `register.ts`, `metabase-types/api/visualization.ts`,
   `viz-core/lib/sensibility.ts`, `EmptyVizState/utils.ts` and
   `embedding/mcp/utils/getMcpChartTypes.ts`.
@@ -26,8 +31,9 @@ staging, runs Metabase's official image and never this fork.
 Metabase's own workflow files are removed from `ma-main`, so only `ma-fork.yml`
 runs here. They would otherwise fire on our pull requests and releases.
 
-Heatmap cards show as tables in emailed subscriptions, Slack alerts and PDF
-exports: Metabase draws those on the server, which doesn't know our chart.
+Heatmap and Flow cards show as tables in emailed subscriptions, Slack alerts
+and PDF exports: Metabase draws those on the server, which doesn't know our
+charts.
 
 ## How a change reaches the sandbox
 
@@ -45,8 +51,8 @@ exports: Metabase draws those on the server, which doesn't know our chart.
 Our changes are frontend only, so every build of the same Metabase version
 uses the same application database. To roll back, point `ma/deploy/Dockerfile`
 at an earlier release, or use Railway's rollback on the previous deployment.
-Going back to Metabase's official image also works: heatmap cards then show as
-tables.
+Going back to Metabase's official image also works: Heatmap and Flow cards
+then show as tables.
 
 ## Upgrading to a new Metabase version
 
