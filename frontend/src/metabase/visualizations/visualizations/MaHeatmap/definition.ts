@@ -88,7 +88,7 @@ const HEATMAP_SETTINGS: VisualizationSettingsDefinitions = {
     },
     widget: "color",
     getDefault: () => color("brand"),
-    isValid: ([{ card }]) =>
+    isValid: ([{ card }]: RawSeries) =>
       isValidColor(getHeatmapDisplayOptions(card.visualization_settings).color),
   },
   [HEATMAP_SETTING_KEYS.showValues]: {
