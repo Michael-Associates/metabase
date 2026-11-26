@@ -11,7 +11,7 @@ import { MA_GRAPH_MESSAGES, MA_GRAPH_SETTING_KEYS } from "./constants";
 export type GraphColumn = {
   name: string;
   displayName: string;
-  baseType: string;
+  baseType: string | null;
   semanticType: string | null;
 };
 
@@ -52,7 +52,7 @@ export function getGraphData({ cols, rows }: DatasetData): GraphData {
     columns: cols.map((col) => ({
       name: col.name,
       displayName: col.display_name,
-      baseType: col.base_type,
+      baseType: col.base_type ?? null,
       semanticType: col.semantic_type ?? null,
     })),
     rows,

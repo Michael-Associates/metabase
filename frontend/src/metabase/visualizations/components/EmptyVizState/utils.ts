@@ -22,15 +22,13 @@ import type { CardDisplayType } from "metabase-types/api";
 
 /**
  * The "table" and the "object" (detail) charts can always display the data
- * using the raw table alone, so they don't need an empty state. A custom graph
- * ("ma_graph") draws whatever its own code says, so it has none either.
+ * using the raw table alone, so they don't need an empty state.
  */
 export type ExcludedEmptyVizDisplayTypes =
   | "table"
   | "list"
   | "object"
-  | "boxplot"
-  | "ma_graph";
+  | "boxplot";
 type SupportedDisplayType = Exclude<
   CardDisplayType,
   ExcludedEmptyVizDisplayTypes
@@ -106,6 +104,15 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
     },
     get secondaryText() {
       return t`E.g., Count of leads grouped by Lead type, Booking type and Outcome`;
+    },
+  },
+  ma_graph: {
+    imgSrc: sankeyImage,
+    get primaryText() {
+      return t`Then shape the results for the graph: one row per thing it draws.`;
+    },
+    get secondaryText() {
+      return t`E.g., Count of customers grouped by Signup source and Stage`;
     },
   },
   ma_heatmap: {
