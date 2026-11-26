@@ -16,8 +16,8 @@ Metabase's, untouched.
   uberjar.
 - `ma/deploy/Dockerfile`: what Railway runs.
 
-Every upstream workflow is disabled in this repository's Actions settings, so
-only `ma-fork.yml` runs.
+Metabase's own workflow files are removed from `ma-main`, so only `ma-fork.yml`
+runs here. They would otherwise fire on our pull requests and releases.
 
 ## How a change reaches staging
 
@@ -35,7 +35,9 @@ only `ma-fork.yml` runs.
    branch. Expect small conflicts only in the five registration files above.
 2. Update `MA_BASE_VERSION` in `ma-fork.yml` and the `FROM` line in
    `ma/deploy/Dockerfile` to the new version.
-3. Disable any new upstream workflow the merge brought in.
+3. Before pushing, delete every file in `.github/workflows/` except
+   `ma-fork.yml` again, including any new one the merge brought in. Leave
+   `.github/actions/` alone: `ma-fork.yml` uses those.
 4. Open the pull request and follow the steps above.
 
 Never deploy a version older than the one the target Metabase already runs:
