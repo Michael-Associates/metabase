@@ -288,7 +288,7 @@ function HeatmapView({
           emptyCellColor={emptyCellColor}
         />
       )}
-      <Box ref={ref} flex={1} mih={0} pos="relative">
+      <div ref={ref} style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {width > 0 && height > 0 && (
           <svg
             width={width}
@@ -405,7 +405,7 @@ function HeatmapView({
             )}
           </svg>
         )}
-      </Box>
+      </div>
     </Flex>
   );
 }

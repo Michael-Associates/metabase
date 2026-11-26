@@ -85,10 +85,15 @@ const setup = ({
     column: (column: DatasetColumn) => ({ column }),
   };
 
-  const onHoverChange = jest.fn<VisualizationProps["onHoverChange"]>();
-  const onVisualizationClick =
-    jest.fn<VisualizationProps["onVisualizationClick"]>();
-  const onRender = jest.fn<VisualizationProps["onRender"]>();
+  const onHoverChange = jest.fn<
+    void,
+    Parameters<VisualizationProps["onHoverChange"]>
+  >();
+  const onVisualizationClick = jest.fn<
+    void,
+    Parameters<VisualizationProps["onVisualizationClick"]>
+  >();
+  const onRender = jest.fn<void, Parameters<VisualizationProps["onRender"]>>();
 
   const props: VisualizationProps = {
     series: [series],
@@ -118,7 +123,7 @@ const setup = ({
     onHoverChange,
     onVisualizationClick,
     onUpdateVisualizationSettings: () => undefined,
-    dispatch: jest.fn<VisualizationProps["dispatch"]>(),
+    dispatch: jest.fn<unknown, [unknown]>(),
   };
 
   renderWithProviders(
