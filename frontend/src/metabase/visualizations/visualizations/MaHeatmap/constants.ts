@@ -8,3 +8,5 @@ export const HEATMAP_SETTING_KEYS = {
 } as const;
 
 export const HEATMAP_LEGEND_HEIGHT = 28;
+
+export const MAX_HEATMAP_CELLS = 10000;

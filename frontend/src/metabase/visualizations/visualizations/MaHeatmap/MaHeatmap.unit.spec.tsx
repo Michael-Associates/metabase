@@ -2,12 +2,10 @@ import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders, screen } from "__support__/ui";
 import { ThemeProvider } from "metabase/ui";
+import { registerVisualizations } from "metabase/visualizations/register";
 import type { VisualizationProps } from "metabase/visualizations/types";
-import type {
-  DatasetColumn,
-  RowValues,
-  VisualizationSettings,
-} from "metabase-types/api";
+import { getComputedSettingsForSeries } from "metabase/viz-core";
+import type { RowValues, VisualizationSettings } from "metabase-types/api";
 import {
   createMockCard,
   createMockColumn,
@@ -15,10 +13,11 @@ import {
   createMockDatasetData,
   createMockNumericColumn,
   createMockSingleSeries,
-  createMockVisualizationSettings,
 } from "metabase-types/api/mocks";
 
 import { MaHeatmap } from "./MaHeatmap";
+
+registerVisualizations();
 
 jest.mock("@mantine/hooks", () => ({
   ...jest.requireActual<Record<string, unknown>>("@mantine/hooks"),
@@ -65,7 +64,10 @@ const setup = ({
   visualizationSettings = {},
   isClickable = true,
 }: SetupOpts = {}) => {
-  const card = createMockCard({ display: "ma_heatmap" });
+  const card = createMockCard({
+    display: "ma_heatmap",
+    visualization_settings: visualizationSettings,
+  });
   const series = createMockSingleSeries(
     card,
     createMockDataset({
@@ -75,15 +77,7 @@ const setup = ({
       }),
     }),
   );
-  const settings = {
-    ...createMockVisualizationSettings({
-      "ma_heatmap.rows": "agent",
-      "ma_heatmap.columns": "day",
-      "ma_heatmap.value": "count",
-      ...visualizationSettings,
-    }),
-    column: (column: DatasetColumn) => ({ column }),
-  };
+  const settings = getComputedSettingsForSeries([series]);
 
   const onHoverChange = jest.fn<
     void,

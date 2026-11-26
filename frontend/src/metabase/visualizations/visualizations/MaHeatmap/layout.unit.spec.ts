@@ -61,6 +61,21 @@ describe("getHeatmapLayout", () => {
     expect(layout.areColumnLabelsRotated).toBe(true);
   });
 
+  it("moves the grid right so the first turned column label is not cut off", () => {
+    const layout = setup({
+      rowLabels: ["Mon", "Tue"],
+      columnLabels: range(24, "September 2026 week "),
+    });
+    const widestLabel = Math.max(
+      ...layout.columnLabels.map((label) => measureText(label)),
+    );
+    const firstLabelLeftEdge =
+      layout.plotX + layout.cellWidth / 2 - widestLabel * Math.SQRT1_2;
+
+    expect(firstLabelLeftEdge).toBeGreaterThanOrEqual(0);
+    expect(layout.plotX + layout.plotWidth).toBeLessThanOrEqual(800);
+  });
+
   it("shows every n-th label when there are too many to show them all", () => {
     const layout = setup({
       height: 200,

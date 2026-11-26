@@ -4,7 +4,12 @@ import {
   createMockNumericColumn,
 } from "metabase-types/api/mocks";
 
-import { getHeatmapColumns, getHeatmapModel, sortAxisItems } from "./model";
+import {
+  getHeatmapColumns,
+  getHeatmapModel,
+  getHeatmapSize,
+  sortAxisItems,
+} from "./model";
 
 const DAY_COLUMN = createMockNumericColumn({
   name: "day_of_week",
@@ -117,8 +122,25 @@ describe("getHeatmapModel", () => {
     expect(model.cells[0].map((cell) => cell?.value)).toEqual([7, 9, 5]);
   });
 
-  it("keeps text axes in the order the query returned them, with empty values last", () => {
+  it("sorts text axes from the query builder alphabetically, with empty values last", () => {
     const model = setup({
+      rows: [
+        [1, "Zoe", 1],
+        [1, null, 2],
+        [1, "Ana", 3],
+      ],
+    });
+
+    expect(model.rowItems.map((item) => item.value)).toEqual([
+      "Ana",
+      "Zoe",
+      null,
+    ]);
+  });
+
+  it("keeps text axes from SQL questions in the order the query returned them", () => {
+    const model = setup({
+      cols: [DAY_COLUMN, { ...AGENT_COLUMN, source: "native" }, COUNT_COLUMN],
       rows: [
         [1, "Zoe", 1],
         [1, null, 2],
@@ -212,6 +234,37 @@ describe("sortAxisItems", () => {
       { key: "c", value: 1 },
     ];
 
-    expect(sortAxisItems(items, { isTemporal: false })).toEqual(items);
+    expect(
+      sortAxisItems(items, { isTemporal: false, sortsText: true }),
+    ).toEqual(items);
+  });
+});
+
+describe("getHeatmapSize", () => {
+  it("counts the distinct rows and columns", () => {
+    const columns = getHeatmapColumns(COLS, {
+      row: "agent",
+      column: "day_of_week",
+      value: "count",
+    });
+    if (columns == null) {
+      throw new Error("Expected the heatmap columns to resolve");
+    }
+
+    expect(
+      getHeatmapSize(
+        [
+          [1, "Ana", 4],
+          [2, "Ana", 5],
+          [3, "Bob", null],
+        ],
+        columns,
+      ),
+    ).toEqual({ rowCount: 2, columnCount: 3, hasValues: true });
+    expect(getHeatmapSize([[1, "Ana", null]], columns)).toEqual({
+      rowCount: 1,
+      columnCount: 1,
+      hasValues: false,
+    });
   });
 });

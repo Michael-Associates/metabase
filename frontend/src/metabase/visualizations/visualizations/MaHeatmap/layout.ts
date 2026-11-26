@@ -31,9 +31,14 @@ const OUTER_PADDING = 8;
 const MAX_ROW_LABEL_SHARE = 0.3;
 const MAX_COLUMN_LABEL_SHARE = 0.3;
 const LABEL_PADDING = 6;
+const ROW_LABEL_SPACING = 2;
 const ROTATED_LABEL_SPACING = 1.4;
 const SIN_45 = Math.SQRT1_2;
 const ELLIPSIS = "…";
+const WIDE_GAP_MIN_CELL_SIZE = 14;
+const NARROW_GAP_MIN_CELL_SIZE = 6;
+const MAX_CELL_RADIUS = 4;
+const CELL_RADIUS_RATIO = 0.18;
 
 /**
  * Splits the available space into the row labels on the left, the column
@@ -50,21 +55,23 @@ export function getHeatmapLayout({
   fontSize,
   measureText,
 }: HeatmapLayoutOptions): HeatmapLayout {
+  const columnCount = Math.max(1, columnLabels.length);
   const rowLabelWidth = Math.min(
     getWidestLabelWidth(rowLabels, measureText),
     width * MAX_ROW_LABEL_SHARE,
   );
-  const plotX = OUTER_PADDING + rowLabelWidth + LABEL_GAP;
-  const plotWidth = Math.max(0, width - plotX - OUTER_PADDING);
-  const cellWidth = plotWidth / Math.max(1, columnLabels.length);
+  const axisOptions = { labels: columnLabels, height, fontSize, measureText };
 
-  const columnAxis = getColumnAxis({
-    labels: columnLabels,
-    cellWidth,
-    height,
-    fontSize,
-    measureText,
-  });
+  let plotX = OUTER_PADDING + rowLabelWidth + LABEL_GAP;
+  let cellWidth = getCellWidth(width, plotX, columnCount);
+  let columnAxis = getColumnAxis({ ...axisOptions, cellWidth });
+
+  const rotatedLabelsX = OUTER_PADDING + columnAxis.labelReach - cellWidth / 2;
+  if (columnAxis.isRotated && rotatedLabelsX > plotX) {
+    plotX = rotatedLabelsX;
+    cellWidth = getCellWidth(width, plotX, columnCount);
+    columnAxis = getColumnAxis({ ...axisOptions, cellWidth });
+  }
 
   const plotY = OUTER_PADDING;
   const plotHeight = Math.max(
@@ -77,20 +84,34 @@ export function getHeatmapLayout({
   return {
     plotX,
     plotY,
-    plotWidth,
+    plotWidth: cellWidth * columnCount,
     plotHeight,
     cellWidth,
     cellHeight,
-    cellGap: smallestSide >= 14 ? 2 : smallestSide >= 6 ? 1 : 0,
-    cellRadius: Math.min(4, smallestSide * 0.18),
+    cellGap: getCellGap(smallestSide),
+    cellRadius: Math.min(MAX_CELL_RADIUS, smallestSide * CELL_RADIUS_RATIO),
     rowLabels: rowLabels.map((label) =>
       truncateLabel(label, rowLabelWidth, measureText),
     ),
-    rowLabelStep: getLabelStep(fontSize + 2, cellHeight),
+    rowLabelStep: getLabelStep(fontSize + ROW_LABEL_SPACING, cellHeight),
     columnLabels: columnAxis.labels,
     columnLabelStep: columnAxis.step,
     areColumnLabelsRotated: columnAxis.isRotated,
   };
+}
+
+function getCellWidth(width: number, plotX: number, columnCount: number) {
+  return Math.max(0, width - plotX - OUTER_PADDING) / columnCount;
+}
+
+function getCellGap(smallestSide: number) {
+  if (smallestSide >= WIDE_GAP_MIN_CELL_SIZE) {
+    return 2;
+  }
+  if (smallestSide >= NARROW_GAP_MIN_CELL_SIZE) {
+    return 1;
+  }
+  return 0;
 }
 
 type ColumnAxisOptions = {
@@ -106,6 +127,7 @@ type ColumnAxis = {
   height: number;
   step: number;
   isRotated: boolean;
+  labelReach: number;
 };
 
 function getColumnAxis({
@@ -123,6 +145,7 @@ function getColumnAxis({
       height: fontSize + LABEL_GAP,
       step: 1,
       isRotated: false,
+      labelReach: 0,
     };
   }
 
@@ -137,6 +160,7 @@ function getColumnAxis({
     height: maxLabelWidth * SIN_45 + fontSize * SIN_45 + LABEL_GAP,
     step: getLabelStep(fontSize * ROTATED_LABEL_SPACING, cellWidth),
     isRotated: true,
+    labelReach: maxLabelWidth * SIN_45,
   };
 }
 

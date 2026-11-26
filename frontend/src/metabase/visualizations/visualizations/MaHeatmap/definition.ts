@@ -13,9 +13,10 @@ import {
 import { isDimension, isMetric } from "metabase-lib/v1/types/utils/isa";
 import type { DatasetData, RawSeries } from "metabase-types/api";
 
-import { HEATMAP_SETTING_KEYS } from "./constants";
-import { getHeatmapColumns } from "./model";
-import { getHeatmapColumnNames } from "./settings";
+import { isValidColor } from "./colors";
+import { HEATMAP_SETTING_KEYS, MAX_HEATMAP_CELLS } from "./constants";
+import { getHeatmapColumns, getHeatmapSize } from "./model";
+import { getHeatmapColumnNames, getHeatmapDisplayOptions } from "./settings";
 
 const HEATMAP_SETTINGS: VisualizationSettingsDefinitions = {
   ...columnSettings({ getHidden: () => true }),
@@ -51,6 +52,16 @@ const HEATMAP_SETTINGS: VisualizationSettingsDefinitions = {
         otherDimensions[0]?.name
       );
     },
+    getProps: ([{ data }], settings) => {
+      const rowsName = getHeatmapColumnNames(settings).row;
+      return {
+        options: data.cols
+          .filter((col) => isDimension(col) && col.name !== rowsName)
+          .map((col) => ({ name: col.display_name, value: col.name })),
+        columns: data.cols,
+        showColumnSetting: true,
+      };
+    },
     readDependencies: [HEATMAP_SETTING_KEYS.rows],
   }),
   ...metricSetting(HEATMAP_SETTING_KEYS.value, {
@@ -77,6 +88,8 @@ const HEATMAP_SETTINGS: VisualizationSettingsDefinitions = {
     },
     widget: "color",
     getDefault: () => color("brand"),
+    isValid: ([{ card }]) =>
+      isValidColor(getHeatmapDisplayOptions(card.visualization_settings).color),
   },
   [HEATMAP_SETTING_KEYS.showValues]: {
     getSection: () => t`Display`,
@@ -111,6 +124,7 @@ export const MA_HEATMAP_DEFINITION: VisualizationDefinition = {
   hasEmptyState: true,
   isSensible: ({ cols, rows }: DatasetData) =>
     rows.length >= 1 &&
+    cols.length >= 3 &&
     cols.filter(isDimension).length >= 2 &&
     cols.some(isMetric),
   checkRenderable: (
@@ -121,9 +135,32 @@ export const MA_HEATMAP_DEFINITION: VisualizationDefinition = {
     if (data.rows.length === 0) {
       return;
     }
-    if (!getHeatmapColumns(data.cols, getHeatmapColumnNames(settings))) {
+
+    const columns = getHeatmapColumns(
+      data.cols,
+      getHeatmapColumnNames(settings),
+    );
+    if (columns == null) {
       throw new ChartSettingsError(
         t`Pick a column for the rows, another for the columns, and a number for the cell values.`,
+        { section: t`Data` },
+        t`Choose columns`,
+      );
+    }
+
+    const { rowCount, columnCount, hasValues } = getHeatmapSize(
+      data.rows,
+      columns,
+    );
+    const cellCount = rowCount * columnCount;
+    if (cellCount > MAX_HEATMAP_CELLS) {
+      throw new ChartSettingsError(
+        t`A heatmap can show up to ${MAX_HEATMAP_CELLS} cells, and this one would need ${cellCount}. Filter the data or group it into fewer values.`,
+      );
+    }
+    if (!hasValues) {
+      throw new ChartSettingsError(
+        t`The value column has no numbers to color the cells with.`,
         { section: t`Data` },
         t`Choose columns`,
       );

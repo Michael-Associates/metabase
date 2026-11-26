@@ -2,6 +2,7 @@ import { useElementSize } from "@mantine/hooks";
 import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -10,6 +11,7 @@ import {
 import { t } from "ttag";
 
 import { Box, Flex, Text } from "metabase/ui";
+import { getTextColorForBackground } from "metabase/ui/colors";
 import { assignLazily } from "metabase/utils/merge-lazily";
 import { formatValue } from "metabase/value-formatting";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
@@ -17,15 +19,15 @@ import type {
   ClickObject,
   VisualizationProps,
 } from "metabase/visualizations/types";
-import type {
-  ComputedVisualizationSettings,
-  RenderingContext,
+import {
+  type ComputedVisualizationSettings,
+  type RenderingContext,
+  extractRemappings,
 } from "metabase/viz-core";
-import type { DatasetColumn, RowValue, RowValues } from "metabase-types/api";
+import type { DatasetColumn, RowValue } from "metabase-types/api";
 
 import {
   type HeatmapColorScale,
-  getCellLabelColor,
   getHeatmapColorScale,
   getHeatmapLegendStops,
 } from "./colors";
@@ -46,9 +48,30 @@ type CellPosition = {
   columnIndex: number;
 };
 
+type CellBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type CellView = CellPosition &
+  CellBounds & {
+    key: string;
+    fill: string;
+    hasValue: boolean;
+    label: string | null;
+    labelColor: string;
+  };
+
 const AXIS_LABEL_WEIGHT = 400;
 const CELL_LABEL_WEIGHT = 700;
 const CELL_LABEL_PADDING = 6;
+const CELL_LABEL_SPACING = 2;
+const HOVER_OUTLINE_WIDTH = 1.5;
+const LEGEND_GRADIENT_WIDTH = 96;
+const LEGEND_GRADIENT_HEIGHT = 8;
+const LEGEND_SWATCH_SIZE = 10;
 
 function MaHeatmapComponent({
   rawSeries,
@@ -61,7 +84,11 @@ function MaHeatmapComponent({
   onVisualizationClick,
   visualizationIsClickable,
 }: VisualizationProps) {
-  const [{ data }] = rawSeries;
+  const remappedSeries = useMemo(
+    () => extractRemappings(rawSeries),
+    [rawSeries],
+  );
+  const [{ data }] = remappedSeries;
   const renderingContext = useBrowserRenderingContext({
     fontFamily,
     isDashboard,
@@ -146,6 +173,9 @@ function HeatmapView({
   const displayOptions = getHeatmapDisplayOptions(settings);
   const fontSize = renderingContext.theme.cartesian.label.fontSize;
   const { getColor, colorScheme = "light" } = renderingContext;
+  const textColor = getColor("text-secondary");
+  const strongTextColor = getColor("text-primary");
+  const emptyCellColor = getColor("background-secondary");
 
   const scale = useMemo(
     () =>
@@ -158,43 +188,47 @@ function HeatmapView({
     [valueExtent, displayOptions.color, getColor, colorScheme],
   );
 
-  const layout = useMemo(() => {
-    const measureLabel = (text: string) =>
-      renderingContext.measureText(text, {
-        size: fontSize,
-        family: renderingContext.fontFamily,
-        weight: AXIS_LABEL_WEIGHT,
-      });
-    return getHeatmapLayout({
-      width,
-      height,
-      rowLabels: model.rowItems.map((item) =>
-        formatDimension(item.value, columns.row.column, settings),
-      ),
-      columnLabels: model.columnItems.map((item) =>
-        formatDimension(item.value, columns.column.column, settings),
-      ),
-      fontSize,
-      measureText: measureLabel,
-    });
-  }, [width, height, model, columns, settings, fontSize, renderingContext]);
-
-  const cellLabels = useMemo(
+  const layout = useMemo(
     () =>
-      displayOptions.showValues
-        ? getCellLabels({
-            model,
-            layout,
-            valueColumn: columns.value.column,
-            settings,
-            fontSize,
-            renderingContext,
-          })
-        : null,
+      getHeatmapLayout({
+        width,
+        height,
+        rowLabels: model.rowItems.map((item) =>
+          formatDimension(item.value, columns.row.column, settings),
+        ),
+        columnLabels: model.columnItems.map((item) =>
+          formatDimension(item.value, columns.column.column, settings),
+        ),
+        fontSize,
+        measureText: (text) =>
+          renderingContext.measureText(text, {
+            size: fontSize,
+            family: renderingContext.fontFamily,
+            weight: AXIS_LABEL_WEIGHT,
+          }),
+      }),
+    [width, height, model, columns, settings, fontSize, renderingContext],
+  );
+
+  const cellViews = useMemo(
+    () =>
+      getCellViews({
+        model,
+        layout,
+        scale,
+        emptyCellColor,
+        showValues: displayOptions.showValues,
+        valueColumn: columns.value.column,
+        settings,
+        fontSize,
+        renderingContext,
+      }),
     [
-      displayOptions.showValues,
       model,
       layout,
+      scale,
+      emptyCellColor,
+      displayOptions.showValues,
       columns,
       settings,
       fontSize,
@@ -202,49 +236,54 @@ function HeatmapView({
     ],
   );
 
+  const isClickable = useMemo(() => {
+    const sample = findFirstCell(model);
+    return (
+      sample != null &&
+      visualizationIsClickable(
+        getCellClickObject({ ...sample, model, columns, cols, settings }),
+      )
+    );
+  }, [model, columns, cols, settings, visualizationIsClickable]);
+
   const handleCellHover = useCallback(
     (position: CellPosition, element: Element) => {
       setHoveredCell(position);
       const cell = model.cells[position.rowIndex][position.columnIndex];
-      if (cell == null) {
-        onHoverChange(null);
-        return;
-      }
-      onHoverChange({
-        element,
-        data: [
-          {
-            key: columns.row.column.display_name,
-            value: model.rowItems[position.rowIndex].value,
-            col: columns.row.column,
-          },
-          {
-            key: columns.column.column.display_name,
-            value: model.columnItems[position.columnIndex].value,
-            col: columns.column.column,
-          },
-          {
-            key: columns.value.column.display_name,
-            value: cell.value,
-            col: columns.value.column,
-          },
-        ],
-      });
+      onHoverChange(
+        cell == null
+          ? null
+          : {
+              element,
+              data: [
+                {
+                  key: columns.row.column.display_name,
+                  value: model.rowItems[position.rowIndex].value,
+                  col: columns.row.column,
+                },
+                {
+                  key: columns.column.column.display_name,
+                  value: model.columnItems[position.columnIndex].value,
+                  col: columns.column.column,
+                },
+                {
+                  key: columns.value.column.display_name,
+                  value: cell.value,
+                  col: columns.value.column,
+                },
+              ],
+            },
+      );
     },
     [model, columns, onHoverChange],
   );
 
-  const handleMouseLeave = useCallback(() => {
-    setHoveredCell(null);
-    onHoverChange(null);
-  }, [onHoverChange]);
-
   const handleCellClick = useCallback(
-    (
-      position: CellPosition,
-      cell: HeatmapCell,
-      event: ReactMouseEvent<SVGRectElement>,
-    ) => {
+    (position: CellPosition, event: ReactMouseEvent<SVGGElement>) => {
+      const cell = model.cells[position.rowIndex][position.columnIndex];
+      if (cell == null || !(event.target instanceof Element)) {
+        return;
+      }
       const clickObject = getCellClickObject({
         position,
         cell,
@@ -257,7 +296,7 @@ function HeatmapView({
         onVisualizationClick({
           ...clickObject,
           event: event.nativeEvent,
-          element: event.currentTarget,
+          element: event.target,
         });
       }
     },
@@ -271,9 +310,10 @@ function HeatmapView({
     ],
   );
 
-  const textColor = getColor("text-secondary");
-  const strongTextColor = getColor("text-primary");
-  const emptyCellColor = getColor("background-secondary");
+  const handleMouseLeave = useCallback(() => {
+    setHoveredCell(null);
+    onHoverChange(null);
+  }, [onHoverChange]);
 
   return (
     <Flex
@@ -290,7 +330,6 @@ function HeatmapView({
           valueColumn={columns.value.column}
           settings={settings}
           hasEmptyCells={model.emptyCellCount > 0}
-          emptyCellColor={emptyCellColor}
         />
       )}
       <Box ref={containerRef} flex={1} mih={0} pos="relative">
@@ -301,110 +340,44 @@ function HeatmapView({
             role="img"
             aria-label={t`Heatmap of ${columns.value.column.display_name} by ${columns.row.column.display_name} and ${columns.column.column.display_name}`}
             style={{
-              display: "block",
+              position: "absolute",
+              top: 0,
+              left: 0,
               fontFamily: renderingContext.fontFamily,
             }}
             onMouseLeave={handleMouseLeave}
           >
-            <g>
-              {layout.rowLabels.map((label, rowIndex) =>
-                rowIndex % layout.rowLabelStep === 0 ? (
-                  <text
-                    key={model.rowItems[rowIndex].key}
-                    x={layout.plotX - LABEL_GAP}
-                    y={layout.plotY + (rowIndex + 0.5) * layout.cellHeight}
-                    textAnchor="end"
-                    dominantBaseline="central"
-                    fontSize={fontSize}
-                    fontWeight={
-                      hoveredCell?.rowIndex === rowIndex
-                        ? CELL_LABEL_WEIGHT
-                        : AXIS_LABEL_WEIGHT
-                    }
-                    fill={
-                      hoveredCell?.rowIndex === rowIndex
-                        ? strongTextColor
-                        : textColor
-                    }
-                    data-testid="ma-heatmap-row-label"
-                  >
-                    {label}
-                  </text>
-                ) : null,
-              )}
-            </g>
-            <g>
-              {layout.columnLabels.map((label, columnIndex) =>
-                columnIndex % layout.columnLabelStep === 0 ? (
-                  <ColumnLabel
-                    key={model.columnItems[columnIndex].key}
-                    label={label}
-                    columnIndex={columnIndex}
-                    layout={layout}
-                    fontSize={fontSize}
-                    isHighlighted={hoveredCell?.columnIndex === columnIndex}
-                    textColor={textColor}
-                    strongTextColor={strongTextColor}
-                  />
-                ) : null,
-              )}
-            </g>
-            <g>
-              {model.cells.map((rowCells, rowIndex) =>
-                rowCells.map((cell, columnIndex) => {
-                  const position = { rowIndex, columnIndex };
-                  const fill =
-                    cell == null ? emptyCellColor : scale.getColor(cell.value);
-                  const label = cellLabels?.[rowIndex][columnIndex] ?? null;
-                  const bounds = getCellBounds(layout, position);
-                  return (
-                    <g
-                      key={`${model.rowItems[rowIndex].key}:${model.columnItems[columnIndex].key}`}
-                    >
-                      <rect
-                        x={bounds.x}
-                        y={bounds.y}
-                        width={bounds.width}
-                        height={bounds.height}
-                        rx={layout.cellRadius}
-                        fill={fill}
-                        style={{ cursor: cell != null ? "pointer" : "default" }}
-                        data-testid="ma-heatmap-cell"
-                        onMouseEnter={(event) =>
-                          handleCellHover(position, event.currentTarget)
-                        }
-                        onClick={(event) => {
-                          if (cell != null) {
-                            handleCellClick(position, cell, event);
-                          }
-                        }}
-                      />
-                      {label != null && (
-                        <text
-                          x={bounds.x + bounds.width / 2}
-                          y={bounds.y + bounds.height / 2}
-                          textAnchor="middle"
-                          dominantBaseline="central"
-                          fontSize={fontSize}
-                          fontWeight={CELL_LABEL_WEIGHT}
-                          fill={getCellLabelColor(fill)}
-                          pointerEvents="none"
-                        >
-                          {label}
-                        </text>
-                      )}
-                    </g>
-                  );
-                }),
-              )}
-            </g>
+            <RowLabels
+              model={model}
+              layout={layout}
+              fontSize={fontSize}
+              hoveredRowIndex={hoveredCell?.rowIndex}
+              textColor={textColor}
+              strongTextColor={strongTextColor}
+            />
+            <ColumnLabels
+              model={model}
+              layout={layout}
+              fontSize={fontSize}
+              hoveredColumnIndex={hoveredCell?.columnIndex}
+              textColor={textColor}
+              strongTextColor={strongTextColor}
+            />
+            <HeatmapCells
+              cells={cellViews}
+              cellRadius={layout.cellRadius}
+              fontSize={fontSize}
+              isClickable={isClickable}
+              onCellHover={handleCellHover}
+              onCellClick={handleCellClick}
+            />
             {hoveredCell != null && (
               <rect
                 {...getCellBounds(layout, hoveredCell)}
                 rx={layout.cellRadius}
                 fill="none"
                 stroke={strongTextColor}
-                strokeWidth={1.5}
+                strokeWidth={HOVER_OUTLINE_WIDTH}
                 pointerEvents="none"
               />
             )}
@@ -415,57 +388,171 @@ function HeatmapView({
   );
 }
 
-type ColumnLabelProps = {
-  label: string;
-  columnIndex: number;
+type HeatmapCellsProps = {
+  cells: CellView[];
+  cellRadius: number;
+  fontSize: number;
+  isClickable: boolean;
+  onCellHover: (position: CellPosition, element: Element) => void;
+  onCellClick: (
+    position: CellPosition,
+    event: ReactMouseEvent<SVGGElement>,
+  ) => void;
+};
+
+const HeatmapCells = memo(function HeatmapCells({
+  cells,
+  cellRadius,
+  fontSize,
+  isClickable,
+  onCellHover,
+  onCellClick,
+}: HeatmapCellsProps) {
+  const handleMouseOver = (event: ReactMouseEvent<SVGGElement>) => {
+    const position = getCellPosition(event.target);
+    if (position != null && event.target instanceof Element) {
+      onCellHover(position, event.target);
+    }
+  };
+
+  const handleClick = (event: ReactMouseEvent<SVGGElement>) => {
+    const position = getCellPosition(event.target);
+    if (position != null) {
+      onCellClick(position, event);
+    }
+  };
+
+  return (
+    <g onMouseOver={handleMouseOver} onClick={handleClick}>
+      {cells.map((cell) => (
+        <g key={cell.key}>
+          <rect
+            x={cell.x}
+            y={cell.y}
+            width={cell.width}
+            height={cell.height}
+            rx={cellRadius}
+            fill={cell.fill}
+            style={{
+              cursor: cell.hasValue && isClickable ? "pointer" : "default",
+            }}
+            data-row={cell.rowIndex}
+            data-column={cell.columnIndex}
+            data-testid="ma-heatmap-cell"
+          />
+          {cell.label != null && (
+            <text
+              x={cell.x + cell.width / 2}
+              y={cell.y + cell.height / 2}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={fontSize}
+              fontWeight={CELL_LABEL_WEIGHT}
+              fill={cell.labelColor}
+              pointerEvents="none"
+            >
+              {cell.label}
+            </text>
+          )}
+        </g>
+      ))}
+    </g>
+  );
+});
+
+type AxisLabelsProps = {
+  model: HeatmapModel;
   layout: HeatmapLayout;
   fontSize: number;
-  isHighlighted: boolean;
   textColor: string;
   strongTextColor: string;
 };
 
-function ColumnLabel({
-  label,
-  columnIndex,
+function RowLabels({
+  model,
   layout,
   fontSize,
-  isHighlighted,
+  hoveredRowIndex,
   textColor,
   strongTextColor,
-}: ColumnLabelProps) {
-  const x = layout.plotX + (columnIndex + 0.5) * layout.cellWidth;
-  const y = layout.plotY + layout.plotHeight + LABEL_GAP;
-  const commonProps = {
-    fontSize,
-    fontWeight: isHighlighted ? CELL_LABEL_WEIGHT : AXIS_LABEL_WEIGHT,
-    fill: isHighlighted ? strongTextColor : textColor,
-    "data-testid": "ma-heatmap-column-label",
-  };
+}: AxisLabelsProps & { hoveredRowIndex: number | undefined }) {
+  return (
+    <g>
+      {layout.rowLabels.map((label, rowIndex) =>
+        rowIndex % layout.rowLabelStep === 0 ? (
+          <text
+            key={model.rowItems[rowIndex].key}
+            x={layout.plotX - LABEL_GAP}
+            y={layout.plotY + (rowIndex + 0.5) * layout.cellHeight}
+            textAnchor="end"
+            dominantBaseline="central"
+            fontSize={fontSize}
+            fontWeight={AXIS_LABEL_WEIGHT}
+            fill={rowIndex === hoveredRowIndex ? strongTextColor : textColor}
+            data-testid="ma-heatmap-row-label"
+          >
+            {label}
+          </text>
+        ) : null,
+      )}
+    </g>
+  );
+}
 
-  if (layout.areColumnLabelsRotated) {
-    return (
-      <text
-        {...commonProps}
-        transform={`translate(${x}, ${y}) rotate(-45)`}
-        textAnchor="end"
-        dominantBaseline="central"
-      >
-        {label}
-      </text>
-    );
-  }
+function ColumnLabels({
+  model,
+  layout,
+  fontSize,
+  hoveredColumnIndex,
+  textColor,
+  strongTextColor,
+}: AxisLabelsProps & { hoveredColumnIndex: number | undefined }) {
+  const y = layout.plotY + layout.plotHeight + LABEL_GAP;
 
   return (
-    <text
-      {...commonProps}
-      x={x}
-      y={y}
-      textAnchor="middle"
-      dominantBaseline="hanging"
-    >
-      {label}
-    </text>
+    <g>
+      {layout.columnLabels.map((label, columnIndex) => {
+        if (columnIndex % layout.columnLabelStep !== 0) {
+          return null;
+        }
+        const x = layout.plotX + (columnIndex + 0.5) * layout.cellWidth;
+        const fill =
+          columnIndex === hoveredColumnIndex ? strongTextColor : textColor;
+        const key = model.columnItems[columnIndex].key;
+
+        if (layout.areColumnLabelsRotated) {
+          return (
+            <text
+              key={key}
+              transform={`translate(${x}, ${y}) rotate(-45)`}
+              textAnchor="end"
+              dominantBaseline="central"
+              fontSize={fontSize}
+              fontWeight={AXIS_LABEL_WEIGHT}
+              fill={fill}
+              data-testid="ma-heatmap-column-label"
+            >
+              {label}
+            </text>
+          );
+        }
+        return (
+          <text
+            key={key}
+            x={x}
+            y={y}
+            textAnchor="middle"
+            dominantBaseline="hanging"
+            fontSize={fontSize}
+            fontWeight={AXIS_LABEL_WEIGHT}
+            fill={fill}
+            data-testid="ma-heatmap-column-label"
+          >
+            {label}
+          </text>
+        );
+      })}
+    </g>
   );
 }
 
@@ -475,7 +562,6 @@ type HeatmapLegendProps = {
   valueColumn: DatasetColumn;
   settings: ComputedVisualizationSettings;
   hasEmptyCells: boolean;
-  emptyCellColor: string;
 };
 
 function HeatmapLegend({
@@ -484,7 +570,6 @@ function HeatmapLegend({
   valueColumn,
   settings,
   hasEmptyCells,
-  emptyCellColor,
 }: HeatmapLegendProps) {
   const stops = getHeatmapLegendStops(valueExtent, scale);
   const gradient = `linear-gradient(to right, ${stops
@@ -506,18 +591,24 @@ function HeatmapLegend({
         {valueColumn.display_name}
       </Text>
       <Text fz="sm" c="text-secondary">
-        {formatMetric(low, valueColumn, settings, true)}
+        {formatMetric(low, valueColumn, settings, { compact: true })}
       </Text>
-      <Box w={96} h={8} style={{ background: gradient, borderRadius: 4 }} />
+      <Box
+        w={LEGEND_GRADIENT_WIDTH}
+        h={LEGEND_GRADIENT_HEIGHT}
+        bdrs="xs"
+        style={{ background: gradient }}
+      />
       <Text fz="sm" c="text-secondary">
-        {formatMetric(high, valueColumn, settings, true)}
+        {formatMetric(high, valueColumn, settings, { compact: true })}
       </Text>
       {hasEmptyCells && (
         <Flex align="center" gap="xs">
           <Box
-            w={10}
-            h={10}
-            style={{ background: emptyCellColor, borderRadius: 2 }}
+            w={LEGEND_SWATCH_SIZE}
+            h={LEGEND_SWATCH_SIZE}
+            bdrs="xs"
+            bg="background-secondary"
           />
           <Text fz="sm" c="text-secondary">{t`No data`}</Text>
         </Flex>
@@ -526,37 +617,82 @@ function HeatmapLegend({
   );
 }
 
-function getCellBounds(layout: HeatmapLayout, position: CellPosition) {
-  const gap = layout.cellGap;
-  return {
-    x: layout.plotX + position.columnIndex * layout.cellWidth + gap / 2,
-    y: layout.plotY + position.rowIndex * layout.cellHeight + gap / 2,
-    width: Math.max(0, layout.cellWidth - gap),
-    height: Math.max(0, layout.cellHeight - gap),
-  };
-}
-
-type CellLabelOptions = {
+type CellViewOptions = {
   model: HeatmapModel;
   layout: HeatmapLayout;
+  scale: HeatmapColorScale;
+  emptyCellColor: string;
+  showValues: boolean;
   valueColumn: DatasetColumn;
   settings: ComputedVisualizationSettings;
   fontSize: number;
   renderingContext: RenderingContext;
 };
 
-function getCellLabels({
+function getCellViews({
   model,
   layout,
+  scale,
+  emptyCellColor,
+  showValues,
   valueColumn,
   settings,
   fontSize,
   renderingContext,
-}: CellLabelOptions): (string | null)[][] | null {
+}: CellViewOptions): CellView[] {
+  const getLabel = getCellLabeler({
+    layout,
+    showValues,
+    valueColumn,
+    settings,
+    fontSize,
+    renderingContext,
+  });
+
+  return model.cells.flatMap((rowCells, rowIndex) =>
+    rowCells.map((cell, columnIndex) => {
+      const fill = cell == null ? emptyCellColor : scale.getColor(cell.value);
+      const label = cell == null ? null : getLabel(cell.value);
+      return {
+        key: `${model.rowItems[rowIndex].key}:${model.columnItems[columnIndex].key}`,
+        rowIndex,
+        columnIndex,
+        ...getCellBounds(layout, { rowIndex, columnIndex }),
+        fill,
+        hasValue: cell != null,
+        label,
+        labelColor:
+          label == null
+            ? fill
+            : getTextColorForBackground(fill, renderingContext.getColor),
+      };
+    }),
+  );
+}
+
+type CellLabelerOptions = Pick<
+  CellViewOptions,
+  "layout" | "showValues" | "valueColumn" | "settings" | "fontSize"
+> & {
+  renderingContext: RenderingContext;
+};
+
+function getCellLabeler({
+  layout,
+  showValues,
+  valueColumn,
+  settings,
+  fontSize,
+  renderingContext,
+}: CellLabelerOptions): (value: number) => string | null {
   const availableWidth = layout.cellWidth - layout.cellGap - CELL_LABEL_PADDING;
   const availableHeight = layout.cellHeight - layout.cellGap;
-  if (availableHeight < fontSize + 2 || availableWidth <= 0) {
-    return null;
+  if (
+    !showValues ||
+    availableWidth <= 0 ||
+    availableHeight < fontSize + CELL_LABEL_SPACING
+  ) {
+    return () => null;
   }
 
   const fits = (text: string) =>
@@ -566,24 +702,59 @@ function getCellLabels({
       weight: CELL_LABEL_WEIGHT,
     }) <= availableWidth;
 
-  return model.cells.map((rowCells) =>
-    rowCells.map((cell) => {
-      if (cell == null) {
-        return null;
+  return (value) => {
+    const fullLabel = formatMetric(value, valueColumn, settings, {
+      compact: false,
+    });
+    if (fits(fullLabel)) {
+      return fullLabel;
+    }
+    const compactLabel = formatMetric(value, valueColumn, settings, {
+      compact: true,
+    });
+    return fits(compactLabel) ? compactLabel : null;
+  };
+}
+
+function getCellBounds(
+  layout: HeatmapLayout,
+  position: CellPosition,
+): CellBounds {
+  const gap = layout.cellGap;
+  return {
+    x: layout.plotX + position.columnIndex * layout.cellWidth + gap / 2,
+    y: layout.plotY + position.rowIndex * layout.cellHeight + gap / 2,
+    width: Math.max(0, layout.cellWidth - gap),
+    height: Math.max(0, layout.cellHeight - gap),
+  };
+}
+
+function getCellPosition(target: EventTarget): CellPosition | null {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+  const rowIndex = target.getAttribute("data-row");
+  const columnIndex = target.getAttribute("data-column");
+  if (rowIndex == null || columnIndex == null) {
+    return null;
+  }
+  return {
+    rowIndex: parseInt(rowIndex, 10),
+    columnIndex: parseInt(columnIndex, 10),
+  };
+}
+
+function findFirstCell(
+  model: HeatmapModel,
+): { position: CellPosition; cell: HeatmapCell } | null {
+  for (const [rowIndex, rowCells] of model.cells.entries()) {
+    for (const [columnIndex, cell] of rowCells.entries()) {
+      if (cell != null) {
+        return { position: { rowIndex, columnIndex }, cell };
       }
-      const fullLabel = formatMetric(cell.value, valueColumn, settings, false);
-      if (fits(fullLabel)) {
-        return fullLabel;
-      }
-      const compactLabel = formatMetric(
-        cell.value,
-        valueColumn,
-        settings,
-        true,
-      );
-      return fits(compactLabel) ? compactLabel : null;
-    }),
-  );
+    }
+  }
+  return null;
 }
 
 type CellClickObjectOptions = {
@@ -603,7 +774,6 @@ function getCellClickObject({
   cols,
   settings,
 }: CellClickObjectOptions): ClickObject {
-  const sourceRow: RowValues = cell.sourceRow;
   return {
     value: cell.value,
     column: columns.value.column,
@@ -618,8 +788,8 @@ function getCellClickObject({
       },
     ],
     settings,
-    origin: { row: sourceRow, cols },
-    data: cols.map((col, index) => ({ col, value: sourceRow[index] })),
+    origin: { row: cell.sourceRow, cols },
+    data: cols.map((col, index) => ({ col, value: cell.sourceRow[index] })),
   };
 }
 
@@ -642,7 +812,7 @@ function formatMetric(
   value: number,
   column: DatasetColumn,
   settings: ComputedVisualizationSettings,
-  compact: boolean,
+  { compact }: { compact: boolean },
 ): string {
   return String(
     formatValue(value, {

@@ -4,9 +4,9 @@ import { color } from "metabase/ui/colors";
 
 import {
   type HeatmapPalette,
-  getCellLabelColor,
   getHeatmapColorScale,
   getHeatmapLegendStops,
+  isValidColor,
 } from "./colors";
 
 const LIGHT_PALETTE: HeatmapPalette = {
@@ -118,13 +118,15 @@ describe("getHeatmapLegendStops", () => {
   });
 });
 
-describe("getCellLabelColor", () => {
-  it("uses dark text on light fills and light text on dark fills", () => {
-    expect(getCellLabelColor(color("background-primary"))).toBe(
-      color("text-primary"),
-    );
-    expect(getCellLabelColor(color("text-primary"))).toBe(
-      color("text-primary-inverse"),
-    );
+describe("isValidColor", () => {
+  it("accepts colors the scale can be built from", () => {
+    expect(isValidColor(color("brand"))).toBe(true);
+    expect(isValidColor(Color(color("brand")).rgb().string())).toBe(true);
+  });
+
+  it("rejects anything else", () => {
+    expect(isValidColor("not a color")).toBe(false);
+    expect(isValidColor(undefined)).toBe(false);
+    expect(isValidColor(42)).toBe(false);
   });
 });

@@ -1,7 +1,5 @@
 import Color from "color";
 
-import { color } from "metabase/ui/colors";
-
 export type HeatmapPalette = {
   positive: string;
   negative: string;
@@ -82,13 +80,18 @@ export function getHeatmapLegendStops(
 }
 
 /**
- * Picks a label color that stays readable on the given cell fill, in both
- * light and dark themes.
+ * Tells whether a saved setting is a color the scale can be built from.
  */
-export function getCellLabelColor(fill: string): string {
-  return Color(fill).isLight()
-    ? color("text-primary")
-    : color("text-primary-inverse");
+export function isValidColor(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  try {
+    Color(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function createRamp(

@@ -33,6 +33,17 @@ export type HeatmapModel = {
   duplicateCount: number;
 };
 
+export type HeatmapSize = {
+  rowCount: number;
+  columnCount: number;
+  hasValues: boolean;
+};
+
+type AxisSortOptions = {
+  isTemporal: boolean;
+  sortsText: boolean;
+};
+
 /**
  * Resolves the row, column and value columns of a heatmap.
  * Returns `null` when any of them is unset, missing from the result, or when
@@ -68,12 +79,39 @@ function findColumn(
 }
 
 /**
+ * Counts the distinct rows and columns the grid would have, and whether any
+ * cell would have a number to color it with.
+ */
+export function getHeatmapSize(
+  rows: RowValues[],
+  columns: HeatmapColumns,
+): HeatmapSize {
+  const rowKeys = new Set<string>();
+  const columnKeys = new Set<string>();
+  let hasValues = false;
+
+  for (const row of rows) {
+    rowKeys.add(getAxisKey(row[columns.row.index]));
+    columnKeys.add(getAxisKey(row[columns.column.index]));
+    hasValues = hasValues || isCellValue(row[columns.value.index]);
+  }
+
+  return {
+    rowCount: rowKeys.size,
+    columnCount: columnKeys.size,
+    hasValues,
+  };
+}
+
+/**
  * Builds the grid a heatmap draws: one axis item per distinct row and column
  * value, and one cell per combination that has a numeric value.
  *
- * Numeric and date axes are sorted ascending; any other axis keeps the order
- * the query returned. Empty values go last. When a combination appears more
- * than once, the first value wins and `duplicateCount` reports the rest.
+ * Number and date axes are sorted ascending. Text axes grouped by the query
+ * builder are sorted alphabetically, like Metabase sorts the query; other text
+ * axes keep the order the query returned. Empty values go last. When a
+ * combination appears more than once, the first value wins and
+ * `duplicateCount` reports the rest.
  */
 export function getHeatmapModel(
   rows: RowValues[],
@@ -95,7 +133,7 @@ export function getHeatmapModel(
     if (!columnItemsByKey.has(columnItem.key)) {
       columnItemsByKey.set(columnItem.key, columnItem);
     }
-    if (typeof value !== "number" || !Number.isFinite(value)) {
+    if (!isCellValue(value)) {
       continue;
     }
 
@@ -107,12 +145,14 @@ export function getHeatmapModel(
     cellsByKey.set(cellKey, { value, sourceRow: row });
   }
 
-  const rowItems = sortAxisItems(Array.from(rowItemsByKey.values()), {
-    isTemporal: isDate(columns.row.column),
-  });
-  const columnItems = sortAxisItems(Array.from(columnItemsByKey.values()), {
-    isTemporal: isDate(columns.column.column),
-  });
+  const rowItems = sortAxisItems(
+    Array.from(rowItemsByKey.values()),
+    getAxisSortOptions(columns.row.column),
+  );
+  const columnItems = sortAxisItems(
+    Array.from(columnItemsByKey.values()),
+    getAxisSortOptions(columns.column.column),
+  );
   const cells = rowItems.map((rowItem) =>
     columnItems.map(
       (columnItem) =>
@@ -130,16 +170,29 @@ export function getHeatmapModel(
   };
 }
 
+function isCellValue(value: RowValue): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function getAxisKey(value: RowValue): string {
+  return value !== null && typeof value === "object"
+    ? `object:${JSON.stringify(value)}`
+    : `${typeof value}:${String(value)}`;
+}
+
 function getAxisItem(value: RowValue): HeatmapAxisItem {
-  const key =
-    value !== null && typeof value === "object"
-      ? `object:${JSON.stringify(value)}`
-      : `${typeof value}:${String(value)}`;
-  return { key, value };
+  return { key: getAxisKey(value), value };
 }
 
 function getCellKey(rowKey: string, columnKey: string) {
   return JSON.stringify([rowKey, columnKey]);
+}
+
+function getAxisSortOptions(column: DatasetColumn): AxisSortOptions {
+  return {
+    isTemporal: isDate(column),
+    sortsText: column.source === "breakout",
+  };
 }
 
 function getValueExtent(cells: Iterable<HeatmapCell>): [number, number] | null {
@@ -153,33 +206,37 @@ function getValueExtent(cells: Iterable<HeatmapCell>): [number, number] | null {
   return extent;
 }
 
-type SortableAxisItem = {
+type SortableAxisItem<T> = {
   item: HeatmapAxisItem;
-  sortValue: number;
+  sortValue: T;
 };
 
 /**
- * Orders axis items: numbers and dates ascending, anything else in the order
- * given, with empty values at the end.
+ * Orders axis items: numbers and dates ascending, text alphabetically when
+ * `sortsText` is set, anything else in the order given. Empty values go last.
  */
 export function sortAxisItems(
   items: HeatmapAxisItem[],
-  { isTemporal }: { isTemporal: boolean },
+  { isTemporal, sortsText }: AxisSortOptions,
 ): HeatmapAxisItem[] {
   const presentItems = items.filter((item) => item.value !== null);
   const emptyItems = items.filter((item) => item.value === null);
-  return [...sortPresentItems(presentItems, isTemporal), ...emptyItems];
+  const sortedItems =
+    sortByNumber(presentItems, isTemporal) ??
+    (sortsText ? sortByText(presentItems) : null) ??
+    presentItems;
+  return [...sortedItems, ...emptyItems];
 }
 
-function sortPresentItems(
+function sortByNumber(
   items: HeatmapAxisItem[],
   isTemporal: boolean,
-): HeatmapAxisItem[] {
-  const sortableItems: SortableAxisItem[] = [];
+): HeatmapAxisItem[] | null {
+  const sortableItems: SortableAxisItem<number>[] = [];
   for (const item of items) {
-    const sortValue = getSortValue(item.value, isTemporal);
+    const sortValue = getNumericSortValue(item.value, isTemporal);
     if (sortValue == null) {
-      return items;
+      return null;
     }
     sortableItems.push({ item, sortValue });
   }
@@ -188,7 +245,23 @@ function sortPresentItems(
     .map(({ item }) => item);
 }
 
-function getSortValue(value: RowValue, isTemporal: boolean): number | null {
+function sortByText(items: HeatmapAxisItem[]): HeatmapAxisItem[] | null {
+  const sortableItems: SortableAxisItem<string>[] = [];
+  for (const item of items) {
+    if (typeof item.value !== "string") {
+      return null;
+    }
+    sortableItems.push({ item, sortValue: item.value });
+  }
+  return sortableItems
+    .sort((left, right) => left.sortValue.localeCompare(right.sortValue))
+    .map(({ item }) => item);
+}
+
+function getNumericSortValue(
+  value: RowValue,
+  isTemporal: boolean,
+): number | null {
   if (typeof value === "number") {
     return value;
   }
