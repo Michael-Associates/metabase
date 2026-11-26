@@ -202,6 +202,9 @@ function getRecommendedVisualizations(
   } else if (hasGeo) {
     recommended.push("table", "pivot", "scatter");
   }
+  if (sensible.includes("ma_flow") && nonLatLongDimensionCount >= 3) {
+    recommended.push("ma_flow");
+  }
   if (sensible.includes("ma_heatmap") && nonLatLongDimensionCount >= 2) {
     recommended.push("ma_heatmap");
   }

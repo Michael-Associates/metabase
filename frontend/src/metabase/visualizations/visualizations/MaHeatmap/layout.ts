@@ -1,4 +1,4 @@
-export type MeasureText = (text: string) => number;
+import { type MeasureText, truncateLabel } from "../MaShared/text";
 
 export type HeatmapLayoutOptions = {
   width: number;
@@ -34,7 +34,6 @@ const LABEL_PADDING = 6;
 const ROW_LABEL_SPACING = 2;
 const ROTATED_LABEL_SPACING = 1.4;
 const SIN_45 = Math.SQRT1_2;
-const ELLIPSIS = "…";
 const WIDE_GAP_MIN_CELL_SIZE = 14;
 const NARROW_GAP_MIN_CELL_SIZE = 6;
 const MAX_CELL_RADIUS = 4;
@@ -176,31 +175,4 @@ function getLabelStep(spaceNeeded: number, spacePerCell: number) {
     return 1;
   }
   return Math.max(1, Math.ceil(spaceNeeded / spacePerCell));
-}
-
-/**
- * Shortens a label with an ellipsis so it fits within `maxWidth`.
- */
-export function truncateLabel(
-  label: string,
-  maxWidth: number,
-  measureText: MeasureText,
-): string {
-  if (measureText(label) <= maxWidth) {
-    return label;
-  }
-
-  let low = 0;
-  let high = label.length;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    const candidate = label.slice(0, middle) + ELLIPSIS;
-    if (measureText(candidate) <= maxWidth) {
-      low = middle;
-    } else {
-      high = middle - 1;
-    }
-  }
-
-  return low > 0 ? label.slice(0, low) + ELLIPSIS : "";
 }

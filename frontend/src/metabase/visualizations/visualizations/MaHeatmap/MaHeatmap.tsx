@@ -1,7 +1,5 @@
-import { useElementSize } from "@mantine/hooks";
 import {
   type MouseEvent as ReactMouseEvent,
-  type RefObject,
   memo,
   useCallback,
   useEffect,
@@ -13,7 +11,6 @@ import { t } from "ttag";
 import { Box, Flex, Text } from "metabase/ui";
 import { getTextColorForBackground } from "metabase/ui/colors";
 import { assignLazily } from "metabase/utils/merge-lazily";
-import { formatValue } from "metabase/value-formatting";
 import { useBrowserRenderingContext } from "metabase/visualizations/hooks/use-browser-rendering-context";
 import type {
   ClickObject,
@@ -24,7 +21,10 @@ import {
   type RenderingContext,
   extractRemappings,
 } from "metabase/viz-core";
-import type { DatasetColumn, RowValue } from "metabase-types/api";
+import type { DatasetColumn } from "metabase-types/api";
+
+import { formatDimension, formatMetric } from "../MaShared/format";
+import { useContainerSize } from "../MaShared/use-container-size";
 
 import {
   type HeatmapColorScale,
@@ -163,11 +163,7 @@ function HeatmapView({
   onVisualizationClick,
   visualizationIsClickable,
 }: HeatmapViewProps) {
-  const { ref, width, height } = useElementSize<HTMLDivElement>();
-  // Mantine types this ref with React 19's `RefObject<T | null>`. Under this
-  // repo's React 18 types `RefObject<T>` already allows `null`, so both
-  // describe the same object.
-  const containerRef = ref as RefObject<HTMLDivElement>;
+  const { ref: containerRef, width, height } = useContainerSize();
   const [hoveredCell, setHoveredCell] = useState<CellPosition | null>(null);
 
   const displayOptions = getHeatmapDisplayOptions(settings);
@@ -791,36 +787,6 @@ function getCellClickObject({
     origin: { row: cell.sourceRow, cols },
     data: cols.map((col, index) => ({ col, value: cell.sourceRow[index] })),
   };
-}
-
-function formatDimension(
-  value: RowValue,
-  column: DatasetColumn,
-  settings: ComputedVisualizationSettings,
-): string {
-  return String(
-    formatValue(value, {
-      ...settings.column?.(column),
-      jsx: false,
-      stringifyNull: true,
-      majorWidth: 0,
-    }),
-  );
-}
-
-function formatMetric(
-  value: number,
-  column: DatasetColumn,
-  settings: ComputedVisualizationSettings,
-  { compact }: { compact: boolean },
-): string {
-  return String(
-    formatValue(value, {
-      ...settings.column?.(column),
-      jsx: false,
-      compact,
-    }),
-  );
 }
 
 export const MaHeatmap = assignLazily(

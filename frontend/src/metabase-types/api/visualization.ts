@@ -39,6 +39,7 @@ export const cardDisplayTypes = [
   "treemap",
   "list",
   "ma_heatmap",
+  "ma_flow",
 ] as const;
 
 export const isCardDisplayType = (value: unknown): value is CardDisplayType =>
