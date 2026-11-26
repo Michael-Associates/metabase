@@ -56,6 +56,7 @@ import { FUNNEL_CHART_DEFINITION } from "./visualizations/Funnel/definition";
 import { GAUGE_CHART_DEFINITION } from "./visualizations/Gauge/definition";
 import { LINE_CHART_DEFINITION } from "./visualizations/LineChart/definition";
 import { LIST_DEFINITION } from "./visualizations/List/definition";
+import { MA_HEATMAP_DEFINITION } from "./visualizations/MaHeatmap/definition";
 import { MAP_VIZ_DEFINITION } from "./visualizations/Map/definition";
 import { OBJECT_DETAIL_DEFINITION } from "./visualizations/ObjectDetail/definition";
 import { DimensionsWidget } from "./visualizations/PieChart/DimensionsWidget";
@@ -183,6 +184,11 @@ function registerVisualizationComponents() {
     import(
       /* webpackChunkName: "viz-list" */ "./visualizations/List/components/ListViz"
     ).then((module) => module.ListViz),
+  );
+  registerVisualization(MA_HEATMAP_DEFINITION, () =>
+    import(
+      /* webpackChunkName: "viz-ma-heatmap" */ "./visualizations/MaHeatmap"
+    ).then((module) => module.MaHeatmap),
   );
 
   setDefaultVisualization(TABLE_DEFINITION);

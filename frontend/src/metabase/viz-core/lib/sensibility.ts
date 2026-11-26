@@ -210,6 +210,9 @@ function getRecommendedVisualizations(
     // treemap best with two-level grouping
     recommended.push("treemap");
   }
+  if (sensible.includes("ma_heatmap") && nonLatLongDimensionCount >= 2) {
+    recommended.push("ma_heatmap");
+  }
   return recommended;
 }
 

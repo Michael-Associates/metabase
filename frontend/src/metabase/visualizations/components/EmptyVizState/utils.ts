@@ -97,6 +97,15 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
       return t`E.g., Count of orders grouped by Year`;
     },
   },
+  ma_heatmap: {
+    imgSrc: pivotImage,
+    get primaryText() {
+      return t`Then pick a metric and two columns to group by.`;
+    },
+    get secondaryText() {
+      return t`E.g., Count of calls grouped by Day of week and Hour of day`;
+    },
+  },
   map: {
     imgSrc: mapRegionImage,
     get primaryText() {
