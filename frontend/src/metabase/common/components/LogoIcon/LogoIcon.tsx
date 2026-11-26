@@ -3,6 +3,8 @@ import cx from "classnames";
 import CS from "metabase/css/core/index.css";
 import { PLUGIN_LOGO_ICON_COMPONENTS } from "metabase/plugins";
 
+import { MaLogoIcon } from "./MaLogoIcon";
+
 interface LogoIconProps {
   width?: number;
   height?: number;
@@ -176,7 +178,8 @@ export const DefaultLogoIcon = ({
   );
 };
 
+// Michael & Associates fork: our icon is the logo, where Metabase's would be.
 export function LogoIcon(props: LogoIconProps) {
-  const [Component = DefaultLogoIcon] = PLUGIN_LOGO_ICON_COMPONENTS;
+  const [Component = MaLogoIcon] = PLUGIN_LOGO_ICON_COMPONENTS;
   return <Component {...props} />;
 }
