@@ -8,8 +8,9 @@ interface MaLogoIconProps {
 }
 
 /**
- * The Michael & Associates "MA" icon: a red M and a black A on a light
- * circle, traced from the firm's icon so it stays sharp at every size.
+ * The Michael & Associates "MA" icon, a red M and a black A on a light
+ * circle, at the given size. It keeps its own colors on every background, so
+ * the `dark` and `fill` options of Metabase's logo don't apply to it.
  */
 export const MaLogoIcon = ({ height = 32, width }: MaLogoIconProps) => (
   <svg

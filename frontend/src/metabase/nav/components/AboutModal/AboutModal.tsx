@@ -1,6 +1,7 @@
 import { t } from "ttag";
 import _ from "underscore";
 
+import { ExternalLink } from "metabase/common/components/ExternalLink";
 import { LogoIcon } from "metabase/common/components/LogoIcon";
 import { useSelector } from "metabase/redux";
 import {
@@ -20,6 +21,8 @@ import {
 } from "metabase/ui";
 import { capitalize } from "metabase/utils/formatting";
 import type { MetabaseInfo } from "metabase-types/api";
+
+const MA_SOURCE_CODE_URL = "https://github.com/Michael-Associates/metabase";
 
 export const AboutModal = ({
   onClose,
@@ -54,6 +57,15 @@ export const AboutModal = ({
                 {capitalize(key)}: {String(value)}
               </Text>
             ))}
+          {/* Michael & Associates fork: say whose build this is and where its
+              source code is, as the AGPL asks of a modified version. */}
+          <Text c="text-secondary" ta="center" data-testid="ma-build-notice">
+            {/* eslint-disable-next-line metabase/no-literal-metabase-strings -- our fork's build notice names Metabase on purpose */}
+            {t`Michael and Associates build of Metabase.`}{" "}
+            <ExternalLink
+              href={MA_SOURCE_CODE_URL}
+            >{t`Source code`}</ExternalLink>
+          </Text>
 
           {showTrademark && (
             <>

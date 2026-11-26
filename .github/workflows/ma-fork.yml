@@ -45,13 +45,21 @@ jobs:
         run: bun run lint-oxlint
       - name: Check types
         run: bun run type-check-pure
-      - name: Run visualization unit tests
+      # The tests of every folder our changes touch: the charts and the
+      # Metabase files they register in, then the branding.
+      - name: Run unit tests for our changes
         run: >-
           bun run test-unit-keep-cljs --silent
           --testPathPatterns
           "frontend/src/metabase/visualizations/"
           "frontend/src/metabase/viz-core/"
           "frontend/src/metabase/embedding/mcp/"
+          "frontend/src/metabase/common/components/LogoIcon/"
+          "frontend/src/metabase/nav/components/AppBar/"
+          "frontend/src/metabase/nav/components/AboutModal/"
+          "frontend/src/metabase/app/nav/"
+          "frontend/src/metabase/home/components/"
+          "frontend/src/metabase/databases/components/DatabaseEngineList/"
 
   uberjar:
     name: Build the uberjar

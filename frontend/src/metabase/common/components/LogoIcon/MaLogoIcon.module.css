@@ -1,4 +1,8 @@
-/* The Michael & Associates icon's own colors, the same on light and dark backgrounds. */
+/*
+ * The Michael & Associates icon's own colors. Metabase asks for theme colors,
+ * but a brand mark must look the same in every theme, so these are a
+ * deliberate exception.
+ */
 .circle {
   fill: #ecedef;
 }

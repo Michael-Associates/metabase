@@ -53,7 +53,9 @@ const setup = async ({ dashboardId }: SetupOpts = {}) => {
 describe("HomePage", () => {
   it("should not load metabot-related data when it is disabled", () => {
     setup();
-    expect(screen.getByText(new RegExp(TEST_USER_NAME))).toBeInTheDocument();
+    expect(screen.getByTestId("greeting-message")).toHaveTextContent(
+      "Welcome to the Michael and Associates Data Platform",
+    );
   });
 
   it("should redirect you to a dashboard when one has been defined to be used as a homepage", async () => {

@@ -51,14 +51,19 @@ export function AppBarLogo({
       data-testid="main-logo-link"
     >
       <LogoIcon height={32} />
+      {/* Michael & Associates fork: the app's title next to the logo. It
+          shortens with an ellipsis rather than push the logo over the
+          sidebar toggle, and narrow windows show the logo alone. */}
       {!isSmallAppBar && (
         <Text
           component="span"
           ml="sm"
+          miw={0}
           fw={700}
           lh="1.25rem"
           c="text-primary"
-          style={{ whiteSpace: "nowrap" }}
+          truncate="end"
+          visibleFrom="md"
           data-testid="ma-app-title"
         >
           {t`M&A Data Platform`}
