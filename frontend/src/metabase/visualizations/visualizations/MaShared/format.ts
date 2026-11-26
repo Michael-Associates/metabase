@@ -1,3 +1,4 @@
+import { formatNumber } from "metabase/utils/formatting";
 import { formatValue } from "metabase/value-formatting";
 import type { ComputedVisualizationSettings } from "metabase/viz-core";
 import type { DatasetColumn, RowValue } from "metabase-types/api";
@@ -42,11 +43,8 @@ export function formatMetric(
  * Formats a ratio such as 0.4213 as "42.1%".
  */
 export function formatShare(ratio: number): string {
-  return String(
-    formatValue(ratio, {
-      number_style: "percent",
-      decimals: 1,
-      jsx: false,
-    }),
-  );
+  return formatNumber(ratio, {
+    number_style: "percent",
+    maximumFractionDigits: 1,
+  });
 }
