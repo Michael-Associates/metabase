@@ -1,6 +1,7 @@
 import { useElementSize } from "@mantine/hooks";
 import {
   type MouseEvent as ReactMouseEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -136,6 +137,10 @@ function HeatmapView({
   visualizationIsClickable,
 }: HeatmapViewProps) {
   const { ref, width, height } = useElementSize<HTMLDivElement>();
+  // Mantine types this ref with React 19's `RefObject<T | null>`. Under this
+  // repo's React 18 types `RefObject<T>` already allows `null`, so both
+  // describe the same object.
+  const containerRef = ref as RefObject<HTMLDivElement>;
   const [hoveredCell, setHoveredCell] = useState<CellPosition | null>(null);
 
   const displayOptions = getHeatmapDisplayOptions(settings);
@@ -288,7 +293,7 @@ function HeatmapView({
           emptyCellColor={emptyCellColor}
         />
       )}
-      <div ref={ref} style={{ flex: 1, minHeight: 0, position: "relative" }}>
+      <Box ref={containerRef} flex={1} mih={0} pos="relative">
         {width > 0 && height > 0 && (
           <svg
             width={width}
@@ -405,7 +410,7 @@ function HeatmapView({
             )}
           </svg>
         )}
-      </div>
+      </Box>
     </Flex>
   );
 }
