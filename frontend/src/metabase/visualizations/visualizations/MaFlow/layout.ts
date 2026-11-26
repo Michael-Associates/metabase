@@ -81,7 +81,7 @@ const DETAIL_ROOM_IN_LINES = 2.4;
  * ellipsis or left out, and its node keeps its tooltip.
  */
 export function getFlowLayout(options: FlowLayoutOptions): FlowLayout {
-  const { width, height, model, fontSize } = options;
+  const { height, model, fontSize } = options;
   const lastStep = model.steps.length - 1;
   const columns = getColumns(options);
 

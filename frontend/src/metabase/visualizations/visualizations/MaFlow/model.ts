@@ -9,9 +9,9 @@ import {
 
 import {
   ENDED_COLOR_KEY,
+  type FlowNodeOrder,
   MAX_FLOW_STEPS,
   MIN_FLOW_STEPS,
-  type FlowNodeOrder,
 } from "./constants";
 import type { FlowColumnNames } from "./settings";
 
