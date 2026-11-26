@@ -39,12 +39,24 @@ export function formatMetric(
   );
 }
 
+const SMALLEST_SHOWN_SHARE = 0.001;
+
 /**
- * Formats a ratio such as 0.4213 as "42.1%".
+ * Formats a ratio such as 0.4213 as "42.1%", with the given number
+ * separators. A share too small to show at one decimal reads "<0.1%" rather
+ * than "0%".
  */
-export function formatShare(ratio: number): string {
-  return formatNumber(ratio, {
-    number_style: "percent",
-    maximumFractionDigits: 1,
-  });
+export function formatShare(
+  ratio: number,
+  { numberSeparators }: { numberSeparators?: string } = {},
+): string {
+  const format = (share: number) =>
+    formatNumber(share, {
+      number_style: "percent",
+      maximumFractionDigits: 1,
+      number_separators: numberSeparators,
+    });
+  return ratio > 0 && ratio < SMALLEST_SHOWN_SHARE
+    ? `<${format(SMALLEST_SHOWN_SHARE)}`
+    : format(ratio);
 }

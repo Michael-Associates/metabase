@@ -144,13 +144,20 @@ describe("getFlowModel", () => {
     expect(model.nodesByKey.get(nodeKey(2, "Won"))?.total).toBe(22);
   });
 
-  it("ends a journey at its first empty step and counts where it ended", () => {
+  it("ends a journey at its first empty step", () => {
     const { model } = setup();
 
-    expect(model.nodesByKey.get(nodeKey(0, "Call"))?.endingTotal).toBe(5);
-    expect(model.nodesByKey.get(nodeKey(1, "Screening"))?.endingTotal).toBe(2);
-    expect(model.nodesByKey.get(nodeKey(2, "Won"))?.endingTotal).toBe(0);
     expect(model.nodesByKey.has(getNodeKey(1, getAxisKey(null)))).toBe(false);
+    expect(model.nodesByKey.has(getNodeKey(2, getAxisKey(null)))).toBe(false);
+    expect(model.skippedStepRowCount).toBe(0);
+  });
+
+  it("counts the rows that have a filled step after an empty one", () => {
+    const { model } = setup({ rows: [...ROWS, ["Form", null, "Won", 3]] });
+
+    expect(model.nodesByKey.get(nodeKey(0, "Form"))?.total).toBe(28);
+    expect(model.nodesByKey.get(nodeKey(2, "Won"))?.total).toBe(22);
+    expect(model.skippedStepRowCount).toBe(1);
   });
 
   it("adds up the bands between steps by color", () => {
@@ -195,14 +202,18 @@ describe("getFlowModel", () => {
     ]);
   });
 
-  it("keeps the query builder's alphabetical order when asked to", () => {
-    const { model } = setup({ nodeOrder: "query" });
+  it("keeps the order values first appear in the result when asked to", () => {
+    const { model } = setup({
+      rows: [["Call", "Screening", "Won", 1], ...ROWS],
+      nodeOrder: "query",
+    });
 
     expect(model.steps[0].map((node) => node.value)).toEqual(["Call", "Form"]);
     expect(model.steps[1].map((node) => node.value)).toEqual([
       "Screening",
       "Self",
     ]);
+    expect(model.steps[2].map((node) => node.value)).toEqual(["Won", "Lost"]);
   });
 
   it("skips rows without a positive size and counts them", () => {
@@ -257,5 +268,15 @@ describe("getFlowSize", () => {
       linkCount: 7,
       hasValues: true,
     });
+  });
+
+  it("counts again when the same result is drawn with other columns", () => {
+    const rows = [...ROWS];
+    const byLeadType = setup().columns;
+    const byOutcome = setup({ colorBy: "outcome" }).columns;
+
+    expect(getFlowSize(rows, byLeadType).linkCount).toBe(7);
+    expect(getFlowSize(rows, byOutcome).linkCount).toBe(8);
+    expect(getFlowSize(rows, byLeadType).linkCount).toBe(7);
   });
 });

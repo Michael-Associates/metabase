@@ -1,11 +1,7 @@
 import type { DatasetColumn, RowValue, RowValues } from "metabase-types/api";
 
-import {
-  type AxisItem,
-  getAxisKey,
-  getAxisSortOptions,
-  sortAxisItems,
-} from "../MaShared/axis";
+import { type AxisItem, getAxisKey } from "../MaShared/axis";
+import { type ChartColumn, findChartColumn } from "../MaShared/columns";
 
 import {
   ENDED_COLOR_KEY,
@@ -15,10 +11,7 @@ import {
 } from "./constants";
 import type { FlowColumnNames } from "./settings";
 
-export type FlowColumn = {
-  column: DatasetColumn;
-  index: number;
-};
+export type FlowColumn = ChartColumn;
 
 export type FlowColumns = {
   steps: FlowColumn[];
@@ -29,7 +22,6 @@ export type FlowColumns = {
 export type FlowNode = AxisItem & {
   stepIndex: number;
   total: number;
-  endingTotal: number;
   totalsByColor: Map<string, number>;
 };
 
@@ -62,6 +54,7 @@ export type FlowModel = {
   colors: FlowColor[];
   total: number;
   skippedRowCount: number;
+  skippedStepRowCount: number;
 };
 
 export type FlowSize = {
@@ -78,6 +71,7 @@ type JourneyDraft = {
   values: RowValue[];
   colorValue: RowValue | undefined;
   value: number;
+  skipsAStep: boolean;
 };
 
 /**
@@ -92,9 +86,9 @@ export function getFlowColumns(
 ): FlowColumns | null {
   const uniqueStepNames = Array.from(new Set(names.steps));
   const steps = uniqueStepNames
-    .map((name) => findColumn(cols, name))
+    .map((name) => findChartColumn(cols, name))
     .filter((step): step is FlowColumn => step != null);
-  const value = findColumn(cols, names.value);
+  const value = findChartColumn(cols, names.value);
 
   if (
     value == null ||
@@ -112,22 +106,32 @@ export function getFlowColumns(
   return { steps, value, colorStepIndex: Math.max(0, colorStepIndex) };
 }
 
-function findColumn(
-  cols: DatasetColumn[],
-  name: string | undefined,
-): FlowColumn | null {
-  if (name == null) {
-    return null;
-  }
-  const index = cols.findIndex((col) => col.name === name);
-  return index >= 0 ? { column: cols[index], index } : null;
-}
+const flowSizeCache = new WeakMap<RowValues[], Map<string, FlowSize>>();
 
 /**
  * Counts the nodes and bands the chart would draw, and whether any row has a
- * positive value to draw.
+ * positive value to draw. Metabase checks this on every render, hovers
+ * included, so the count is kept for each result and set of columns.
  */
 export function getFlowSize(rows: RowValues[], columns: FlowColumns): FlowSize {
+  const columnsKey = JSON.stringify([
+    columns.steps.map((step) => step.index),
+    columns.value.index,
+    columns.colorStepIndex,
+  ]);
+  const sizesByColumns = flowSizeCache.get(rows) ?? new Map<string, FlowSize>();
+  const cachedSize = sizesByColumns.get(columnsKey);
+  if (cachedSize != null) {
+    return cachedSize;
+  }
+
+  const size = countFlowSize(rows, columns);
+  sizesByColumns.set(columnsKey, size);
+  flowSizeCache.set(rows, sizesByColumns);
+  return size;
+}
+
+function countFlowSize(rows: RowValues[], columns: FlowColumns): FlowSize {
   const nodeKeys = new Set<string>();
   const linkKeys = new Set<string>();
   let hasValues = false;
@@ -141,7 +145,7 @@ export function getFlowSize(rows: RowValues[], columns: FlowColumns): FlowSize {
     const keys = journey.values.map((value, stepIndex) =>
       getNodeKey(stepIndex, getAxisKey(value)),
     );
-    const colorKey = getColorKey(journey);
+    const colorKey = getJourneyColorKey(journey);
     keys.forEach((key, position) => {
       nodeKeys.add(key);
       if (position > 0) {
@@ -158,9 +162,12 @@ export function getFlowSize(rows: RowValues[], columns: FlowColumns): FlowSize {
  *
  * Each row is one journey, weighted by its value. A journey ends at the first
  * empty step after the first one, so a funnel can show where people drop
- * out. Rows with an empty, zero or negative value are skipped and counted in
- * `skippedRowCount`. Bands are colored by the journey's value at the color-by
- * step, or marked as ended when the journey stopped before it.
+ * out; rows with a filled step after that are counted in
+ * `skippedStepRowCount`. Rows with an empty, zero or negative value are
+ * skipped and counted in `skippedRowCount`. Bands are colored by the
+ * journey's value at the color-by step, or marked as ended when the journey
+ * stopped before it. Each step's values keep the order they first appear in,
+ * or go largest first.
  */
 export function getFlowModel(
   rows: RowValues[],
@@ -173,6 +180,7 @@ export function getFlowModel(
   const journeys: FlowJourney[] = [];
   let total = 0;
   let skippedRowCount = 0;
+  let skippedStepRowCount = 0;
 
   for (const row of rows) {
     const draft = getJourneyDraft(row, columns);
@@ -180,8 +188,9 @@ export function getFlowModel(
       skippedRowCount += 1;
       continue;
     }
+    skippedStepRowCount += draft.skipsAStep ? 1 : 0;
 
-    const colorKey = getColorKey(draft);
+    const colorKey = getJourneyColorKey(draft);
     if (!colorValues.has(colorKey)) {
       colorValues.set(colorKey, draft.colorValue ?? null);
     }
@@ -192,9 +201,6 @@ export function getFlowModel(
         value,
         colorKey,
         amount: draft.value,
-        isEnding:
-          stepIndex === draft.values.length - 1 &&
-          stepIndex < columns.steps.length - 1,
       }),
     );
     nodeKeys.slice(1).forEach((targetKey, position) => {
@@ -211,15 +217,11 @@ export function getFlowModel(
     total += draft.value;
   }
 
-  const steps = columns.steps.map((step, stepIndex) =>
-    orderNodes(
-      Array.from(nodesByKey.values()).filter(
-        (node) => node.stepIndex === stepIndex,
-      ),
-      step.column,
-      nodeOrder,
-    ),
-  );
+  const nodesInQueryOrder: FlowNode[][] = columns.steps.map(() => []);
+  for (const node of nodesByKey.values()) {
+    nodesInQueryOrder[node.stepIndex].push(node);
+  }
+  const steps = nodesInQueryOrder.map((nodes) => orderNodes(nodes, nodeOrder));
 
   return {
     steps,
@@ -230,6 +232,7 @@ export function getFlowModel(
     colors: orderColors(colorValues, steps[columns.colorStepIndex]),
     total,
     skippedRowCount,
+    skippedStepRowCount,
   };
 }
 
@@ -290,14 +293,11 @@ function getJourneyDraft(
     return null;
   }
 
-  const values: RowValue[] = [];
-  for (const [stepIndex, step] of columns.steps.entries()) {
-    const stepValue = row[step.index];
-    if (stepIndex > 0 && stepValue === null) {
-      break;
-    }
-    values.push(stepValue);
-  }
+  const stepValues = columns.steps.map((step) => row[step.index]);
+  const end = stepValues.findIndex(
+    (stepValue, stepIndex) => stepIndex > 0 && stepValue === null,
+  );
+  const values = end >= 0 ? stepValues.slice(0, end) : stepValues;
 
   return {
     values,
@@ -306,13 +306,23 @@ function getJourneyDraft(
         ? values[columns.colorStepIndex]
         : undefined,
     value,
+    skipsAStep:
+      end >= 0 && stepValues.slice(end).some((stepValue) => stepValue !== null),
   };
 }
 
-function getColorKey(journey: JourneyDraft): string {
+function getJourneyColorKey(journey: JourneyDraft): string {
   return journey.colorValue === undefined
     ? ENDED_COLOR_KEY
-    : getAxisKey(journey.colorValue);
+    : getValueColorKey(journey.colorValue);
+}
+
+/**
+ * The color of the bands of journeys that have this value at the color-by
+ * step, and of that value's own box.
+ */
+export function getValueColorKey(value: RowValue): string {
+  return getAxisKey(value);
 }
 
 /**
@@ -322,7 +332,14 @@ export function getNodeKey(stepIndex: number, axisKey: string): string {
   return JSON.stringify([stepIndex, axisKey]);
 }
 
-function getLinkKey(sourceKey: string, targetKey: string, colorKey: string) {
+/**
+ * The identity of a band: a hop between two nodes, for one color.
+ */
+export function getLinkKey(
+  sourceKey: string,
+  targetKey: string,
+  colorKey: string,
+): string {
   return JSON.stringify([sourceKey, targetKey, colorKey]);
 }
 
@@ -331,12 +348,11 @@ type NodeContribution = {
   value: RowValue;
   colorKey: string;
   amount: number;
-  isEnding: boolean;
 };
 
 function addToNode(
   nodesByKey: Map<string, FlowNode>,
-  { stepIndex, value, colorKey, amount, isEnding }: NodeContribution,
+  { stepIndex, value, colorKey, amount }: NodeContribution,
 ): string {
   const key = getNodeKey(stepIndex, getAxisKey(value));
   const node = nodesByKey.get(key) ?? {
@@ -344,11 +360,9 @@ function addToNode(
     value,
     stepIndex,
     total: 0,
-    endingTotal: 0,
     totalsByColor: new Map<string, number>(),
   };
   node.total += amount;
-  node.endingTotal += isEnding ? amount : 0;
   node.totalsByColor.set(
     colorKey,
     (node.totalsByColor.get(colorKey) ?? 0) + amount,
@@ -377,15 +391,13 @@ function addToLink(
 }
 
 function orderNodes(
-  nodes: FlowNode[],
-  column: DatasetColumn,
+  nodesInQueryOrder: FlowNode[],
   nodeOrder: FlowNodeOrder,
 ): FlowNode[] {
-  const queryOrder = sortAxisItems(nodes, getAxisSortOptions(column));
   if (nodeOrder === "query") {
-    return queryOrder;
+    return nodesInQueryOrder;
   }
-  return queryOrder
+  return nodesInQueryOrder
     .map((node, position) => ({ node, position }))
     .sort(
       (left, right) =>
@@ -398,7 +410,7 @@ function orderColors(
   colorValues: Map<string, RowValue>,
   colorStepNodes: FlowNode[],
 ): FlowColor[] {
-  const nodeOrder = colorStepNodes.map((node) => getAxisKey(node.value));
+  const nodeOrder = colorStepNodes.map((node) => getValueColorKey(node.value));
   return Array.from(colorValues.entries())
     .map(([key, value]) => ({ key, value, isEnded: key === ENDED_COLOR_KEY }))
     .sort(

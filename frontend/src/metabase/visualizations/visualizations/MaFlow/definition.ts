@@ -24,19 +24,35 @@ import { getFlowColumnNames, getSavedStepSlots } from "./settings";
 
 /**
  * The steps a new flow chart starts with: every grouping column, in query
- * order. When a SQL result has only numbers, every column but the last
- * metric, which becomes the value.
+ * order. When a SQL result has only numbers, every column but the one that
+ * becomes the size of each journey.
  */
 export function getDefaultFlowSteps(cols: DatasetColumn[]): string[] {
   const groupings = cols.filter((col) => isDimension(col) && !isMetric(col));
   if (groupings.length >= 2) {
     return groupings.slice(0, MAX_FLOW_STEPS).map((col) => col.name);
   }
-  const lastMetric = [...cols].reverse().find(isMetric);
+  const value = getDefaultFlowValue(cols, []);
   return cols
-    .filter((col) => isDimension(col) && col !== lastMetric)
+    .filter((col) => isDimension(col) && col.name !== value)
     .slice(0, MAX_FLOW_STEPS)
     .map((col) => col.name);
+}
+
+/**
+ * The size of each journey a new flow chart starts with: the first summary
+ * the query builder made, or else the last number column, where SQL queries
+ * usually put their count. Never one of the steps.
+ */
+export function getDefaultFlowValue(
+  cols: DatasetColumn[],
+  stepNames: string[],
+): string | undefined {
+  const candidates = cols.filter(
+    (col) => isMetric(col) && !stepNames.includes(col.name),
+  );
+  const aggregation = candidates.find((col) => col.source === "aggregation");
+  return (aggregation ?? candidates[candidates.length - 1])?.name;
 }
 
 const FLOW_SETTINGS: VisualizationSettingsDefinitions = {
@@ -51,9 +67,11 @@ const FLOW_SETTINGS: VisualizationSettingsDefinitions = {
     dashboard: false,
     useRawSeries: true,
     getDefault: ([{ data }]: RawSeries) => getDefaultFlowSteps(data.cols),
-    isValid: ([{ card, data }]: RawSeries) => {
-      const saved: unknown =
-        card.visualization_settings[FLOW_SETTING_KEYS.steps];
+    isValid: (
+      [{ data }]: RawSeries,
+      settings: ComputedVisualizationSettings,
+    ) => {
+      const saved: unknown = settings[FLOW_SETTING_KEYS.steps];
       if (!Array.isArray(saved)) {
         return false;
       }
@@ -71,8 +89,9 @@ const FLOW_SETTINGS: VisualizationSettingsDefinitions = {
       [{ data }]: RawSeries,
       settings: ComputedVisualizationSettings,
     ) => {
+      const { value } = getFlowColumnNames(settings);
       const options = data.cols
-        .filter(isDimension)
+        .filter((col) => isDimension(col) && col.name !== value)
         .map((col) => ({ name: col.display_name, value: col.name }));
       const { count, areAllChosen } = getSavedStepSlots(settings);
       return {
@@ -95,11 +114,8 @@ const FLOW_SETTINGS: VisualizationSettingsDefinitions = {
     persistDefault: true,
     dashboard: false,
     autoOpenWhenUnset: false,
-    getDefault: ([{ data }], settings) => {
-      const steps = getFlowColumnNames(settings).steps;
-      return data.cols.find((col) => isMetric(col) && !steps.includes(col.name))
-        ?.name;
-    },
+    getDefault: ([{ data }], settings) =>
+      getDefaultFlowValue(data.cols, getFlowColumnNames(settings).steps),
     readDependencies: [FLOW_SETTING_KEYS.steps],
   }),
   [FLOW_SETTING_KEYS.colorBy]: {
@@ -110,14 +126,8 @@ const FLOW_SETTINGS: VisualizationSettingsDefinitions = {
     widget: "select",
     getDefault: (_series: RawSeries, settings: ComputedVisualizationSettings) =>
       getFlowColumnNames(settings).steps[0],
-    isValid: (
-      [{ card }]: RawSeries,
-      settings: ComputedVisualizationSettings,
-    ) => {
-      const saved = readStringSetting(
-        card.visualization_settings,
-        FLOW_SETTING_KEYS.colorBy,
-      );
+    isValid: (_series: RawSeries, settings: ComputedVisualizationSettings) => {
+      const saved = readStringSetting(settings, FLOW_SETTING_KEYS.colorBy);
       return (
         saved != null && getFlowColumnNames(settings).steps.includes(saved)
       );
@@ -192,7 +202,16 @@ export const MA_FLOW_DEFINITION: VisualizationDefinition = {
       return;
     }
 
-    const columns = getFlowColumns(data.cols, getFlowColumnNames(settings));
+    const names = getFlowColumnNames(settings);
+    if (names.value != null && names.steps.includes(names.value)) {
+      throw new ChartSettingsError(
+        t`The size of each journey can't also be a step. Pick a different column for one of them.`,
+        { section: t`Data` },
+        t`Choose columns`,
+      );
+    }
+
+    const columns = getFlowColumns(data.cols, names);
     if (columns == null) {
       throw new ChartSettingsError(
         t`Pick at least two different steps and a number for the size of each journey.`,

@@ -37,6 +37,28 @@ const COUNT = createMockNumericColumn({
 });
 const QUERY_BUILDER_COLS = [LEAD_TYPE, BOOKING, OUTCOME, COUNT];
 
+const nativeTextColumn = (name: string) =>
+  createMockColumn({
+    name,
+    display_name: name,
+    base_type: "type/Text",
+    effective_type: "type/Text",
+    source: "native",
+  });
+const nativeNumberColumn = (name: string) =>
+  createMockNumericColumn({ name, display_name: name, source: "native" });
+
+const SQL_COLS = [
+  nativeTextColumn("lead_type"),
+  nativeTextColumn("booking"),
+  nativeTextColumn("outcome"),
+  nativeNumberColumn("count"),
+];
+const SQL_ROWS: RowValues[] = [
+  ["Form", "Self", "Won", 10],
+  ["Call", "Screening", "Lost", 4],
+];
+
 interface SetupOpts {
   cols?: DatasetColumn[];
   rows?: RowValues[];
@@ -63,7 +85,15 @@ const setup = ({
   const settings = getComputedSettingsForSeries(series);
   const checkRenderable = () =>
     MA_FLOW_DEFINITION.checkRenderable(series, settings);
-  return { settings, checkRenderable };
+  const getStepsProps = () =>
+    MA_FLOW_DEFINITION.settings["ma_flow.steps"]?.getProps?.(
+      series,
+      settings,
+      () => undefined,
+      undefined,
+      () => undefined,
+    );
+  return { settings, checkRenderable, getStepsProps };
 };
 
 describe("MA_FLOW_DEFINITION settings", () => {
@@ -90,6 +120,60 @@ describe("MA_FLOW_DEFINITION settings", () => {
 
     expect(settings["ma_flow.steps"]).toEqual(["year", "month"]);
     expect(settings["ma_flow.value"]).toBe("calls");
+  });
+
+  it("sizes SQL journeys by the last number column, where SQL usually puts the count", () => {
+    const { settings } = setup({
+      cols: [
+        nativeTextColumn("source"),
+        nativeTextColumn("outcome"),
+        nativeNumberColumn("average_days"),
+        nativeNumberColumn("count"),
+      ],
+      rows: [["Form", "Won", 3, 10]],
+    });
+
+    expect(settings["ma_flow.steps"]).toEqual(["source", "outcome"]);
+    expect(settings["ma_flow.value"]).toBe("count");
+  });
+
+  it("keeps the size column out of the steps it offers", () => {
+    const { getStepsProps } = setup({ cols: SQL_COLS, rows: SQL_ROWS });
+
+    expect(getStepsProps()).toEqual(
+      expect.objectContaining({
+        options: [
+          { name: "lead_type", value: "lead_type" },
+          { name: "booking", value: "booking" },
+          { name: "outcome", value: "outcome" },
+        ],
+        addAnother: null,
+      }),
+    );
+  });
+
+  it("offers another step while there are columns left", () => {
+    const { getStepsProps } = setup({
+      visualizationSettings: { "ma_flow.steps": ["lead_type", "booking"] },
+    });
+
+    expect(getStepsProps()).toEqual(
+      expect.objectContaining({ addAnother: "Add a step" }),
+    );
+  });
+
+  it("keeps the empty slot the picker adds while a step is being chosen", () => {
+    const { settings, checkRenderable, getStepsProps } = setup({
+      visualizationSettings: {
+        "ma_flow.steps": ["lead_type", "booking", null],
+      },
+    });
+
+    expect(settings["ma_flow.steps"]).toEqual(["lead_type", "booking", null]);
+    expect(getStepsProps()).toEqual(
+      expect.objectContaining({ addAnother: null }),
+    );
+    expect(checkRenderable).not.toThrow();
   });
 
   it("keeps the steps and colors people chose", () => {
@@ -129,6 +213,21 @@ describe("MA_FLOW_DEFINITION.checkRenderable", () => {
     });
 
     expect(checkRenderable).toThrow("Pick at least two different steps");
+  });
+
+  it("explains when the size column is also a step", () => {
+    const { checkRenderable } = setup({
+      cols: SQL_COLS,
+      rows: SQL_ROWS,
+      visualizationSettings: {
+        "ma_flow.steps": ["lead_type", "count"],
+        "ma_flow.value": "count",
+      },
+    });
+
+    expect(checkRenderable).toThrow(
+      "The size of each journey can't also be a step.",
+    );
   });
 
   it("refuses more boxes than it can draw", () => {

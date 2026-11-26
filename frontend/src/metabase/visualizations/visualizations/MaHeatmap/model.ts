@@ -7,13 +7,11 @@ import {
   getAxisSortOptions,
   sortAxisItems,
 } from "../MaShared/axis";
+import { type ChartColumn, findChartColumn } from "../MaShared/columns";
 
 import type { HeatmapColumnNames } from "./settings";
 
-export type HeatmapColumn = {
-  column: DatasetColumn;
-  index: number;
-};
+export type HeatmapColumn = ChartColumn;
 
 export type HeatmapColumns = {
   row: HeatmapColumn;
@@ -52,9 +50,9 @@ export function getHeatmapColumns(
   cols: DatasetColumn[],
   names: HeatmapColumnNames,
 ): HeatmapColumns | null {
-  const row = findColumn(cols, names.row);
-  const column = findColumn(cols, names.column);
-  const value = findColumn(cols, names.value);
+  const row = findChartColumn(cols, names.row);
+  const column = findChartColumn(cols, names.column);
+  const value = findChartColumn(cols, names.value);
 
   if (row == null || column == null || value == null) {
     return null;
@@ -64,17 +62,6 @@ export function getHeatmapColumns(
   }
 
   return { row, column, value };
-}
-
-function findColumn(
-  cols: DatasetColumn[],
-  name: string | undefined,
-): HeatmapColumn | null {
-  if (name == null) {
-    return null;
-  }
-  const index = cols.findIndex((col) => col.name === name);
-  return index >= 0 ? { column: cols[index], index } : null;
 }
 
 /**

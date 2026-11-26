@@ -15,7 +15,11 @@ import {
   createMockSingleSeries,
 } from "metabase-types/api/mocks";
 
+import { getAxisKey } from "../MaShared/axis";
+
 import { MaFlow } from "./MaFlow";
+import { ENDED_COLOR_KEY } from "./constants";
+import { getLinkKey, getNodeKey, getValueColorKey } from "./model";
 
 registerVisualizations();
 
@@ -121,27 +125,41 @@ const setup = ({ rows = ROWS, visualizationSettings = {} }: SetupOpts = {}) => {
   return { onHoverChange, onVisualizationClick, onRender };
 };
 
-const getNode = (value: string) => {
+type StepValue = [stepIndex: number, value: string];
+
+const nodeKey = ([stepIndex, value]: StepValue) =>
+  getNodeKey(stepIndex, getAxisKey(value));
+
+const linkKey = (source: StepValue, target: StepValue, colorKey: string) =>
+  getLinkKey(nodeKey(source), nodeKey(target), colorKey);
+
+const getNode = (stepValue: StepValue) => {
+  const key = nodeKey(stepValue);
   const node = screen
     .getAllByTestId("ma-flow-node")
-    .find((element) =>
-      element.getAttribute("data-node")?.includes(`"string:${value}"`),
-    );
+    .find((element) => element.getAttribute("data-node") === key);
   if (node == null) {
-    throw new Error(`No box for ${value}`);
+    throw new Error(`No box for ${key}`);
   }
   return node;
 };
 
-const getBandTo = (value: string) => {
+const getBand = (key: string) => {
   const band = screen
     .getAllByTestId("ma-flow-band")
-    .find((element) => element.getAttribute("data-link")?.includes(value));
+    .find((element) => element.getAttribute("data-link") === key);
   if (band == null) {
-    throw new Error(`No band to ${value}`);
+    throw new Error(`No band for ${key}`);
   }
   return band;
 };
+
+const FORM = getValueColorKey("Form");
+
+const dimension = (value: string, columnName: string) => ({
+  value,
+  column: expect.objectContaining({ name: columnName }),
+});
 
 describe("MaFlow", () => {
   it("draws a box for every value at every step and a band for every hop", () => {
@@ -151,14 +169,14 @@ describe("MaFlow", () => {
     expect(screen.getAllByTestId("ma-flow-band")).toHaveLength(7);
   });
 
-  it("titles every step", () => {
+  it("titles every step in uppercase", () => {
     setup();
 
     expect(
       screen
         .getAllByTestId("ma-flow-step-title")
         .map((title) => title.textContent),
-    ).toEqual(["Lead type", "Booking", "Outcome"]);
+    ).toEqual(["LEAD TYPE", "BOOKING", "OUTCOME"]);
   });
 
   it("labels the boxes with their count and share of all journeys", () => {
@@ -169,6 +187,16 @@ describe("MaFlow", () => {
     ).toContain("Form25 · 62.5%");
   });
 
+  it("labels the boxes with their names only when counts are turned off", () => {
+    setup({ visualizationSettings: { "ma_flow.show_values": false } });
+
+    const labels = screen
+      .getAllByTestId("ma-flow-label")
+      .map((label) => label.textContent);
+    expect(labels).toContain("Form");
+    expect(labels.some((label) => label?.includes("%"))).toBe(false);
+  });
+
   it("lists the colors in the legend", () => {
     setup();
 
@@ -177,19 +205,58 @@ describe("MaFlow", () => {
     );
   });
 
+  it("names the journeys that ended before the color-by step in the legend", () => {
+    setup({ visualizationSettings: { "ma_flow.color_by": "outcome" } });
+
+    expect(screen.getByTestId("ma-flow-legend")).toHaveTextContent(
+      "OutcomeWonLostEnded before this step",
+    );
+  });
+
+  it("hides the legend when it is turned off", () => {
+    setup({ visualizationSettings: { "ma_flow.show_legend": false } });
+
+    expect(screen.queryByTestId("ma-flow-legend")).not.toBeInTheDocument();
+  });
+
   it("traces every journey through a hovered box and breaks it down by color", async () => {
     const { onHoverChange } = setup();
 
-    await userEvent.hover(getNode("Self"));
+    await userEvent.hover(getNode([1, "Screening"]));
 
-    expect(screen.getAllByTestId("ma-flow-traced-band")).toHaveLength(3);
+    expect(screen.getAllByTestId("ma-flow-traced-band")).toHaveLength(4);
     expect(onHoverChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         stackedTooltipModel: expect.objectContaining({
-          headerTitle: "Booking: Self",
+          headerTitle: "Booking: Screening",
           grandTotal: 40,
-          bodyRows: [expect.objectContaining({ name: "Form", value: 15 })],
+          bodyRows: [
+            expect.objectContaining({ name: "Form", value: 4 }),
+            expect.objectContaining({ name: "Call", value: 10 }),
+          ],
         }),
+      }),
+    );
+  });
+
+  it("shows the value and share of a hovered box of one color", async () => {
+    const { onHoverChange } = setup();
+
+    await userEvent.hover(getNode([1, "Self"]));
+
+    expect(onHoverChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({ key: "Booking", value: "Self" }),
+          expect.objectContaining({ key: "Lead type", value: "Form" }),
+          expect.objectContaining({ key: "Count", value: 15 }),
+        ],
+        footerData: [
+          expect.objectContaining({
+            key: "Share of all journeys",
+            value: "37.5%",
+          }),
+        ],
       }),
     );
   });
@@ -197,7 +264,7 @@ describe("MaFlow", () => {
   it("describes a hovered band", async () => {
     const { onHoverChange } = setup();
 
-    await userEvent.hover(getBandTo("Lost"));
+    await userEvent.hover(getBand(linkKey([1, "Self"], [2, "Lost"], FORM)));
 
     expect(onHoverChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -211,43 +278,86 @@ describe("MaFlow", () => {
     );
   });
 
+  it("stops tracing when the pointer moves to empty space in the chart", async () => {
+    const { onHoverChange } = setup();
+
+    await userEvent.hover(getNode([1, "Self"]));
+    await userEvent.hover(screen.getByRole("img"));
+
+    expect(screen.queryAllByTestId("ma-flow-traced-band")).toHaveLength(0);
+    expect(onHoverChange).toHaveBeenLastCalledWith(null);
+  });
+
   it("stops tracing when the pointer leaves the chart", async () => {
     const { onHoverChange } = setup();
 
-    await userEvent.hover(getNode("Self"));
+    await userEvent.hover(getNode([1, "Self"]));
     await userEvent.unhover(screen.getByRole("img"));
 
     expect(screen.queryAllByTestId("ma-flow-traced-band")).toHaveLength(0);
     expect(onHoverChange).toHaveBeenLastCalledWith(null);
   });
 
-  it("drills through on both steps of a clicked band", async () => {
+  it("drills through on a band's two steps and its color when the hop has several colors", async () => {
     const { onVisualizationClick } = setup();
 
-    await userEvent.click(getBandTo("Lost"));
+    await userEvent.click(getBand(linkKey([1, "Screening"], [2, "Won"], FORM)));
 
     expect(onVisualizationClick).toHaveBeenCalledTimes(1);
     expect(onVisualizationClick).toHaveBeenCalledWith(
       expect.objectContaining({
-        value: 5,
+        value: 4,
         column: expect.objectContaining({ name: "count" }),
         dimensions: [
-          expect.objectContaining({ value: "Self" }),
-          expect.objectContaining({ value: "Lost" }),
+          dimension("Form", "lead_type"),
+          dimension("Screening", "booking"),
+          dimension("Won", "outcome"),
         ],
       }),
     );
   });
 
+  it("drills through on a band's two steps when it is colored by one of them", async () => {
+    const { onVisualizationClick } = setup({
+      visualizationSettings: { "ma_flow.color_by": "booking" },
+    });
+
+    await userEvent.click(
+      getBand(linkKey([1, "Self"], [2, "Lost"], getValueColorKey("Self"))),
+    );
+
+    expect(onVisualizationClick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        value: 5,
+        dimensions: [
+          dimension("Self", "booking"),
+          dimension("Lost", "outcome"),
+        ],
+      }),
+    );
+  });
+
+  it("doesn't drill through on a band of journeys that ended before the color-by step", async () => {
+    const { onVisualizationClick } = setup({
+      visualizationSettings: { "ma_flow.color_by": "outcome" },
+    });
+
+    await userEvent.click(
+      getBand(linkKey([0, "Call"], [1, "Screening"], ENDED_COLOR_KEY)),
+    );
+
+    expect(onVisualizationClick).not.toHaveBeenCalled();
+  });
+
   it("drills through on the step of a clicked box", async () => {
     const { onVisualizationClick } = setup();
 
-    await userEvent.click(getNode("Call"));
+    await userEvent.click(getNode([0, "Call"]));
 
     expect(onVisualizationClick).toHaveBeenCalledWith(
       expect.objectContaining({
         value: 15,
-        dimensions: [expect.objectContaining({ value: "Call" })],
+        dimensions: [dimension("Call", "lead_type")],
       }),
     );
   });
@@ -257,6 +367,16 @@ describe("MaFlow", () => {
 
     expect(onRender).toHaveBeenLastCalledWith({
       warnings: ["Rows with an empty, zero or negative size aren't drawn."],
+    });
+  });
+
+  it("warns when some rows skip a step", () => {
+    const { onRender } = setup({ rows: [...ROWS, ["Form", null, "Won", 3]] });
+
+    expect(onRender).toHaveBeenLastCalledWith({
+      warnings: [
+        "Some rows have an empty step before a filled one. Their journeys are drawn only up to the empty step.",
+      ],
     });
   });
 });

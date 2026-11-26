@@ -59,8 +59,11 @@ export type FlowLayout = {
   scale: number;
 };
 
-export const FLOW_NODE_WIDTH = 12;
+/** Letter spacing of the step titles, in em. */
+export const FLOW_TITLE_LETTER_SPACING = 0.04;
 
+const NODE_WIDTH = 12;
+const MIN_NODE_WIDTH = 2;
 const OUTER_PADDING = 8;
 const LABEL_GAP = 8;
 const TITLE_GAP = 14;
@@ -76,29 +79,35 @@ const DETAIL_ROOM_IN_LINES = 2.4;
 /**
  * Places the steps as columns from left to right, each step's nodes stacked
  * from the top with heights proportional to their totals on one shared
- * scale, and every band between them. Labels sit left of the first step and
- * right of every other step; a label that has no room is shortened with an
- * ellipsis or left out, and its node keeps its tooltip.
+ * scale, and every band between them. Tiny nodes are drawn at a minimum
+ * height that the scale makes room for, so every node stays inside the
+ * space. Labels sit left of the first step and right of every other step; a
+ * label that has no room is shortened with an ellipsis or left out, and its
+ * node keeps its tooltip. Step titles are uppercase.
  */
 export function getFlowLayout(options: FlowLayoutOptions): FlowLayout {
   const { height, model, fontSize } = options;
-  const lastStep = model.steps.length - 1;
   const columns = getColumns(options);
 
   const plotTop = OUTER_PADDING + fontSize + TITLE_GAP;
   const plotHeight = Math.max(0, height - plotTop - OUTER_PADDING);
-  const nodeGap = getNodeGap(model, plotHeight);
-  const scale = getScale(model, plotHeight, nodeGap);
+  const largestStep = Math.max(0, ...model.steps.map((nodes) => nodes.length));
+  const minNodeHeight =
+    largestStep > 0
+      ? Math.min(MIN_NODE_HEIGHT, plotHeight / largestStep)
+      : MIN_NODE_HEIGHT;
+  const nodeGap = getNodeGap(largestStep, plotHeight, minNodeHeight);
+  const scale = getScale(model, plotHeight, nodeGap, minNodeHeight);
 
   const nodes = new Map<string, FlowRect>();
   model.steps.forEach((stepNodes, stepIndex) => {
     let y = plotTop;
     for (const node of stepNodes) {
-      const nodeHeight = Math.max(MIN_NODE_HEIGHT, node.total * scale);
+      const nodeHeight = Math.max(minNodeHeight, node.total * scale);
       nodes.set(node.key, {
         x: columns.getX(stepIndex),
         y,
-        width: FLOW_NODE_WIDTH,
+        width: columns.nodeWidth,
         height: nodeHeight,
       });
       y += nodeHeight + nodeGap;
@@ -128,30 +137,16 @@ export function getFlowLayout(options: FlowLayoutOptions): FlowLayout {
     nodes,
     bands: getBands(model, nodes, options.colorOrder, scale),
     labels,
-    stepTitles: options.stepTitles.map((text, stepIndex) => {
-      const isFirstStep = stepIndex === 0;
-      const x = isFirstStep
-        ? columns.getX(stepIndex) + FLOW_NODE_WIDTH
-        : columns.getX(stepIndex);
-      return {
-        x,
-        y: OUTER_PADDING + fontSize,
-        anchor: isFirstStep ? "end" : "start",
-        text: truncateLabel(
-          text,
-          columns.getTitleWidth(stepIndex, stepIndex === lastStep),
-          options.measureBoldText,
-        ),
-      };
-    }),
+    stepTitles: getStepTitles(options, columns),
     scale,
   };
 }
 
 type Columns = {
+  nodeWidth: number;
   getX: (stepIndex: number) => number;
   getLabelWidth: (stepIndex: number) => number;
-  getTitleWidth: (stepIndex: number, isLastStep: boolean) => number;
+  getTitleWidth: (stepIndex: number) => number;
 };
 
 function getColumns({
@@ -179,17 +174,21 @@ function getColumns({
     sideLimit,
   );
   const left = OUTER_PADDING + leftLabelWidth + LABEL_GAP;
-  const right = Math.max(
-    left + FLOW_NODE_WIDTH,
-    width - OUTER_PADDING - rightLabelWidth - LABEL_GAP,
-  );
-  const spacing = (right - left - FLOW_NODE_WIDTH) / Math.max(1, lastStep);
-  const middleLabelWidth = Math.max(
+  const plotWidth = Math.max(
     0,
-    spacing - FLOW_NODE_WIDTH - LABEL_GAP * 2,
+    width - OUTER_PADDING - rightLabelWidth - LABEL_GAP - left,
   );
+  // Narrow charts get thinner nodes, so each node is at most half the space
+  // between two steps and the bands between them stay visible.
+  const nodeWidth = Math.max(
+    MIN_NODE_WIDTH,
+    Math.min(NODE_WIDTH, plotWidth / (2 * lastStep + 1)),
+  );
+  const spacing = Math.max(0, plotWidth - nodeWidth) / Math.max(1, lastStep);
+  const middleLabelWidth = Math.max(0, spacing - nodeWidth - LABEL_GAP * 2);
 
   return {
+    nodeWidth,
     getX: (stepIndex) => left + stepIndex * spacing,
     getLabelWidth: (stepIndex) => {
       if (stepIndex === 0) {
@@ -197,19 +196,22 @@ function getColumns({
       }
       return stepIndex === lastStep ? rightLabelWidth : middleLabelWidth;
     },
-    getTitleWidth: (stepIndex, isLastStep) => {
+    getTitleWidth: (stepIndex) => {
       if (stepIndex === 0) {
-        return leftLabelWidth + LABEL_GAP + FLOW_NODE_WIDTH;
+        return leftLabelWidth + LABEL_GAP + nodeWidth;
       }
-      return isLastStep
-        ? rightLabelWidth + LABEL_GAP + FLOW_NODE_WIDTH
+      return stepIndex === lastStep
+        ? rightLabelWidth + LABEL_GAP + nodeWidth
         : Math.max(0, spacing - LABEL_GAP);
     },
   };
 }
 
-function getNodeGap(model: FlowModel, plotHeight: number): number {
-  const largestStep = Math.max(...model.steps.map((nodes) => nodes.length));
+function getNodeGap(
+  largestStep: number,
+  plotHeight: number,
+  minNodeHeight: number,
+): number {
   if (largestStep <= 1) {
     return 0;
   }
@@ -218,22 +220,83 @@ function getNodeGap(model: FlowModel, plotHeight: number): number {
     MAX_NODE_GAP,
     Math.max(MIN_NODE_GAP, (plotHeight * NODE_GAP_SHARE) / gapCount),
   );
-  return Math.min(preferredGap, (plotHeight * MAX_GAP_SHARE) / gapCount);
+  const roomForGaps = Math.max(0, plotHeight - largestStep * minNodeHeight);
+  return Math.min(
+    preferredGap,
+    (plotHeight * MAX_GAP_SHARE) / gapCount,
+    roomForGaps / gapCount,
+  );
 }
 
 function getScale(
   model: FlowModel,
   plotHeight: number,
   nodeGap: number,
+  minNodeHeight: number,
 ): number {
   const stepScales = model.steps
-    .map((nodes) => {
-      const total = nodes.reduce((sum, node) => sum + node.total, 0);
-      const room = plotHeight - nodeGap * Math.max(0, nodes.length - 1);
-      return total > 0 ? Math.max(0, room) / total : null;
-    })
-    .filter((stepScale): stepScale is number => stepScale != null);
+    .filter((nodes) => nodes.length > 0)
+    .map((nodes) =>
+      getStepScale(
+        nodes.map((node) => node.total),
+        plotHeight - nodeGap * (nodes.length - 1),
+        minNodeHeight,
+      ),
+    );
   return stepScales.length > 0 ? Math.min(...stepScales) : 0;
+}
+
+/**
+ * The largest scale at which a step's nodes fill its room, with the nodes too
+ * small to see raised to the minimum height. Raising a node leaves less room
+ * for the rest, which can push the next smallest node under the minimum, so
+ * nodes are raised from the smallest up until the rest are tall enough.
+ */
+function getStepScale(
+  totals: number[],
+  room: number,
+  minNodeHeight: number,
+): number {
+  const ascending = [...totals].sort((left, right) => left - right);
+  let restTotal = ascending.reduce((sum, total) => sum + total, 0);
+  let scale = 0;
+  for (const [raisedCount, total] of ascending.entries()) {
+    if (restTotal <= 0) {
+      break;
+    }
+    scale = Math.max(0, room - raisedCount * minNodeHeight) / restTotal;
+    if (total * scale >= minNodeHeight) {
+      break;
+    }
+    restTotal -= total;
+  }
+  return scale;
+}
+
+function getStepTitles(
+  options: FlowLayoutOptions,
+  columns: Columns,
+): FlowStepTitle[] {
+  const { fontSize, measureBoldText } = options;
+  const letterSpacing = FLOW_TITLE_LETTER_SPACING * fontSize;
+  const measureTitle = (text: string) =>
+    measureBoldText(text) + text.length * letterSpacing;
+
+  return options.stepTitles.map((title, stepIndex) => {
+    const isFirstStep = stepIndex === 0;
+    return {
+      x: isFirstStep
+        ? columns.getX(stepIndex) + columns.nodeWidth
+        : columns.getX(stepIndex),
+      y: OUTER_PADDING + fontSize,
+      anchor: isFirstStep ? "end" : "start",
+      text: truncateLabel(
+        title.toLocaleUpperCase(),
+        columns.getTitleWidth(stepIndex),
+        measureTitle,
+      ),
+    };
+  });
 }
 
 function getBands(
