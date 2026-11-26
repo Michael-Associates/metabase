@@ -14,7 +14,11 @@ import {
 } from "metabase-types/api/mocks";
 
 import { MAX_FLOW_NODES } from "./constants";
-import { MA_FLOW_DEFINITION } from "./definition";
+import {
+  MA_FLOW_DEFINITION,
+  getFlowStepsProps,
+  getFlowValueProps,
+} from "./definition";
 
 registerVisualizations();
 
@@ -85,15 +89,9 @@ const setup = ({
   const settings = getComputedSettingsForSeries(series);
   const checkRenderable = () =>
     MA_FLOW_DEFINITION.checkRenderable(series, settings);
-  const getStepsProps = () =>
-    MA_FLOW_DEFINITION.settings?.["ma_flow.steps"]?.getProps?.(
-      series,
-      settings,
-      () => undefined,
-      undefined,
-      () => undefined,
-    );
-  return { settings, checkRenderable, getStepsProps };
+  const getStepsProps = () => getFlowStepsProps(series, settings);
+  const getValueProps = () => getFlowValueProps(series, settings);
+  return { settings, checkRenderable, getStepsProps, getValueProps };
 };
 
 describe("MA_FLOW_DEFINITION settings", () => {
@@ -150,6 +148,22 @@ describe("MA_FLOW_DEFINITION settings", () => {
         addAnother: null,
       }),
     );
+  });
+
+  it("keeps the steps out of the size columns it offers", () => {
+    const { getValueProps } = setup({
+      cols: [
+        nativeTextColumn("lead_type"),
+        nativeNumberColumn("year"),
+        nativeNumberColumn("count"),
+      ],
+      rows: [["Form", 2026, 10]],
+      visualizationSettings: { "ma_flow.steps": ["lead_type", "year"] },
+    });
+
+    expect(getValueProps().options).toEqual([
+      { name: "count", value: "count" },
+    ]);
   });
 
   it("offers another step while there are columns left", () => {

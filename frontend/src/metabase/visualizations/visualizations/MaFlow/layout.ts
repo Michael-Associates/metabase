@@ -69,7 +69,7 @@ const LABEL_GAP = 8;
 const TITLE_GAP = 14;
 const MAX_SIDE_LABEL_SHARE = 0.22;
 const NODE_GAP_SHARE = 0.3;
-const MAX_GAP_SHARE = 0.5;
+const MAX_SPACING_SHARE = 0.5;
 const MIN_NODE_GAP = 4;
 const MAX_NODE_GAP = 24;
 const MIN_NODE_HEIGHT = 2;
@@ -81,7 +81,8 @@ const DETAIL_ROOM_IN_LINES = 2.4;
  * from the top with heights proportional to their totals on one shared
  * scale, and every band between them. Tiny nodes are drawn at a minimum
  * height that the scale makes room for, so every node stays inside the
- * space. Labels sit left of the first step and right of every other step; a
+ * space, and the gaps and minimum heights never take more than half of it.
+ * Labels sit left of the first step and right of every other step; a
  * label that has no room is shortened with an ellipsis or left out, and its
  * node keeps its tooltip. Step titles are uppercase.
  */
@@ -92,11 +93,7 @@ export function getFlowLayout(options: FlowLayoutOptions): FlowLayout {
   const plotTop = OUTER_PADDING + fontSize + TITLE_GAP;
   const plotHeight = Math.max(0, height - plotTop - OUTER_PADDING);
   const largestStep = Math.max(0, ...model.steps.map((nodes) => nodes.length));
-  const minNodeHeight =
-    largestStep > 0
-      ? Math.min(MIN_NODE_HEIGHT, plotHeight / largestStep)
-      : MIN_NODE_HEIGHT;
-  const nodeGap = getNodeGap(largestStep, plotHeight, minNodeHeight);
+  const { nodeGap, minNodeHeight } = getNodeSpacing(largestStep, plotHeight);
   const scale = getScale(model, plotHeight, nodeGap, minNodeHeight);
 
   const nodes = new Map<string, FlowRect>();
@@ -207,25 +204,31 @@ function getColumns({
   };
 }
 
-function getNodeGap(
+/**
+ * The gap between nodes and the smallest height a node is drawn at. In the
+ * step with the most nodes, the gaps and minimum heights together take at
+ * most half the plot; when they would take more, both shrink by the same
+ * factor, so a long tail of tiny values can't squeeze the large ones.
+ */
+function getNodeSpacing(
   largestStep: number,
   plotHeight: number,
-  minNodeHeight: number,
-): number {
-  if (largestStep <= 1) {
-    return 0;
-  }
-  const gapCount = largestStep - 1;
-  const preferredGap = Math.min(
-    MAX_NODE_GAP,
-    Math.max(MIN_NODE_GAP, (plotHeight * NODE_GAP_SHARE) / gapCount),
-  );
-  const roomForGaps = Math.max(0, plotHeight - largestStep * minNodeHeight);
-  return Math.min(
-    preferredGap,
-    (plotHeight * MAX_GAP_SHARE) / gapCount,
-    roomForGaps / gapCount,
-  );
+): { nodeGap: number; minNodeHeight: number } {
+  const gapCount = Math.max(0, largestStep - 1);
+  const preferredGap =
+    gapCount > 0
+      ? Math.min(
+          MAX_NODE_GAP,
+          Math.max(MIN_NODE_GAP, (plotHeight * NODE_GAP_SHARE) / gapCount),
+        )
+      : 0;
+  const spacing = largestStep * MIN_NODE_HEIGHT + gapCount * preferredGap;
+  const shrink =
+    spacing > 0 ? Math.min(1, (plotHeight * MAX_SPACING_SHARE) / spacing) : 1;
+  return {
+    nodeGap: preferredGap * shrink,
+    minNodeHeight: MIN_NODE_HEIGHT * shrink,
+  };
 }
 
 function getScale(

@@ -29,6 +29,7 @@ import type { DatasetColumn } from "metabase-types/api";
 import { formatDimension, formatMetric, formatShare } from "../MaShared/format";
 import { useContainerSize } from "../MaShared/use-container-size";
 
+import { ENDED_COLOR_KEY } from "./constants";
 import { MA_FLOW_DEFINITION } from "./definition";
 import {
   FLOW_TITLE_LETTER_SPACING,
@@ -140,11 +141,6 @@ type FlowViewProps = Pick<
   renderingContext: RenderingContext;
 };
 
-type HoveredTarget = {
-  model: FlowModel;
-  target: FlowTarget;
-};
-
 function FlowView({
   className,
   columns,
@@ -156,11 +152,6 @@ function FlowView({
   visualizationIsClickable,
 }: FlowViewProps) {
   const { ref, width, height } = useContainerSize();
-  const [hovered, setHovered] = useState<HoveredTarget | null>(null);
-  // A trace belongs to the model it was made on, so it ends when the data or
-  // settings change.
-  const tracedTarget = hovered?.model === model ? hovered.target : null;
-
   const { showValues, showLegend } = getFlowDisplayOptions(settings);
   const fontSize = renderingContext.theme.cartesian.label.fontSize;
   const colorColumn = columns.steps[columns.colorStepIndex].column;
@@ -174,12 +165,130 @@ function FlowView({
     settings,
     renderingContext,
   });
+  const layout = useFlowLayout({
+    width,
+    height,
+    model,
+    columns,
+    settings,
+    showValues,
+    numberSeparators,
+    renderingContext,
+  });
+  const { tracedValues, isClickable, ...handlers } = useFlowEvents({
+    model,
+    columns,
+    settings,
+    colorsByKey,
+    colorLabels,
+    numberSeparators,
+    onHoverChange,
+    onVisualizationClick,
+    visualizationIsClickable,
+  });
+
+  return (
+    <Flex
+      className={className}
+      direction="column"
+      w="100%"
+      h="100%"
+      data-testid="ma-flow"
+    >
+      {showLegend && (
+        <FlowLegend
+          colors={model.colors}
+          colorsByKey={colorsByKey}
+          colorLabels={colorLabels}
+          colorColumn={colorColumn}
+        />
+      )}
+      <Box ref={ref} flex={1} mih={0} pos="relative">
+        {width > 0 && height > 0 && (
+          <svg
+            width={width}
+            height={height}
+            role="img"
+            aria-label={t`Flow of ${columns.value.column.display_name} through ${columns.steps.map((step) => step.column.display_name).join(", ")}`}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              fontFamily: renderingContext.fontFamily,
+            }}
+            onMouseOver={handlers.handleMouseOver}
+            onMouseLeave={handlers.handleMouseLeave}
+            onClick={handlers.handleClick}
+          >
+            <FlowBands
+              model={model}
+              columns={columns}
+              layout={layout}
+              colorsByKey={colorsByKey}
+              opacity={tracedValues ? FADED_BAND_OPACITY : BAND_OPACITY}
+              isClickable={isClickable}
+            />
+            {tracedValues && (
+              <TracedBands
+                model={model}
+                layout={layout}
+                colorsByKey={colorsByKey}
+                tracedValues={tracedValues}
+              />
+            )}
+            <FlowNodes
+              model={model}
+              columns={columns}
+              layout={layout}
+              colorsByKey={colorsByKey}
+              neutralColor={renderingContext.getColor("text-secondary")}
+              isClickable={isClickable}
+            />
+            <FlowLabels
+              layout={layout}
+              fontSize={fontSize}
+              renderingContext={renderingContext}
+            />
+            <FlowStepTitles
+              layout={layout}
+              fontSize={fontSize}
+              renderingContext={renderingContext}
+            />
+          </svg>
+        )}
+      </Box>
+    </Flex>
+  );
+}
+
+type FlowLayoutHookOptions = {
+  width: number;
+  height: number;
+  model: FlowModel;
+  columns: FlowColumns;
+  settings: ComputedVisualizationSettings;
+  showValues: boolean;
+  numberSeparators: string | undefined;
+  renderingContext: RenderingContext;
+};
+
+function useFlowLayout({
+  width,
+  height,
+  model,
+  columns,
+  settings,
+  showValues,
+  numberSeparators,
+  renderingContext,
+}: FlowLayoutHookOptions): FlowLayout {
+  const fontSize = renderingContext.theme.cartesian.label.fontSize;
   const nodeTexts = useMemo(
     () =>
       getNodeTexts({ model, columns, settings, showValues, numberSeparators }),
     [model, columns, settings, showValues, numberSeparators],
   );
-  const layout = useMemo(() => {
+  return useMemo(() => {
     const measure = (weight: number) => (text: string) =>
       renderingContext.measureText(text, {
         size: fontSize,
@@ -198,7 +307,45 @@ function FlowView({
       measureBoldText: measure(NAME_WEIGHT),
     });
   }, [width, height, model, columns, nodeTexts, fontSize, renderingContext]);
+}
 
+type FlowEventsOptions = Pick<
+  VisualizationProps,
+  "onHoverChange" | "onVisualizationClick" | "visualizationIsClickable"
+> & {
+  model: FlowModel;
+  columns: FlowColumns;
+  settings: ComputedVisualizationSettings;
+  colorsByKey: Map<string, string>;
+  colorLabels: Map<string, string>;
+  numberSeparators: string | undefined;
+};
+
+type HoveredTarget = {
+  model: FlowModel;
+  target: FlowTarget;
+};
+
+/**
+ * Traces and describes the box or band under the pointer, and drills through
+ * on a click. Boxes and bands are found by their `data-node` and `data-link`
+ * attributes, so the whole chart shares one set of handlers.
+ */
+function useFlowEvents({
+  model,
+  columns,
+  settings,
+  colorsByKey,
+  colorLabels,
+  numberSeparators,
+  onHoverChange,
+  onVisualizationClick,
+  visualizationIsClickable,
+}: FlowEventsOptions) {
+  const [hovered, setHovered] = useState<HoveredTarget | null>(null);
+  // A trace belongs to the model it was made on, so it ends when the data or
+  // settings change.
+  const tracedTarget = hovered?.model === model ? hovered.target : null;
   const tracedValues = useMemo(
     () => (tracedTarget ? getTracedLinkValues(model, tracedTarget) : null),
     [model, tracedTarget],
@@ -257,78 +404,13 @@ function FlowView({
     }
   };
 
-  return (
-    <Flex
-      className={className}
-      direction="column"
-      w="100%"
-      h="100%"
-      data-testid="ma-flow"
-    >
-      {showLegend && (
-        <FlowLegend
-          colors={model.colors}
-          colorsByKey={colorsByKey}
-          colorLabels={colorLabels}
-          colorColumn={colorColumn}
-        />
-      )}
-      <Box ref={ref} flex={1} mih={0} pos="relative">
-        {width > 0 && height > 0 && (
-          <svg
-            width={width}
-            height={height}
-            role="img"
-            aria-label={t`Flow of ${columns.value.column.display_name} through ${columns.steps.map((step) => step.column.display_name).join(", ")}`}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              fontFamily: renderingContext.fontFamily,
-            }}
-            onMouseOver={handleMouseOver}
-            onMouseLeave={handleMouseLeave}
-            onClick={handleClick}
-          >
-            <FlowBands
-              model={model}
-              columns={columns}
-              layout={layout}
-              colorsByKey={colorsByKey}
-              opacity={tracedValues ? FADED_BAND_OPACITY : BAND_OPACITY}
-              isClickable={isClickable}
-            />
-            {tracedValues && (
-              <TracedBands
-                model={model}
-                layout={layout}
-                colorsByKey={colorsByKey}
-                tracedValues={tracedValues}
-              />
-            )}
-            <FlowNodes
-              model={model}
-              columns={columns}
-              layout={layout}
-              colorsByKey={colorsByKey}
-              neutralColor={renderingContext.getColor("text-secondary")}
-              isClickable={isClickable}
-            />
-            <FlowLabels
-              layout={layout}
-              fontSize={fontSize}
-              renderingContext={renderingContext}
-            />
-            <FlowStepTitles
-              layout={layout}
-              fontSize={fontSize}
-              renderingContext={renderingContext}
-            />
-          </svg>
-        )}
-      </Box>
-    </Flex>
-  );
+  return {
+    tracedValues,
+    isClickable,
+    handleMouseOver,
+    handleMouseLeave,
+    handleClick,
+  };
 }
 
 type FlowColorsOptions = {
@@ -339,8 +421,9 @@ type FlowColorsOptions = {
 };
 
 /**
- * Names and colors every band color. Each color gets its own chart color,
- * even when two values format to the same name.
+ * Names and colors every band color. Two values that format to the same name
+ * are told apart with a number, in the legend and tooltips, and each gets its
+ * own chart color.
  */
 function useFlowColors({
   model,
@@ -352,23 +435,15 @@ function useFlowColors({
   const { getColor } = renderingContext;
 
   const colorLabels = useMemo(
-    () =>
-      new Map(
-        model.colors.map((color) => [
-          color.key,
-          getColorLabel(color, colorColumn, settings),
-        ]),
-      ),
+    () => getUniqueColorLabels(model.colors, colorColumn, settings),
     [model, colorColumn, settings],
   );
 
   const colorsByKey = useMemo(() => {
-    const names = getUniqueColorNames(
-      model.colors.filter((color) => !color.isEnded),
-      colorLabels,
-    );
     const mapping = getColorsForValues(
-      Array.from(names.values()),
+      model.colors
+        .filter((color) => !color.isEnded)
+        .map((color) => colorLabels.get(color.key) ?? ""),
       null,
       palette,
     );
@@ -377,7 +452,7 @@ function useFlowColors({
         color.key,
         color.isEnded
           ? getColor("text-tertiary")
-          : (mapping[names.get(color.key) ?? ""] ?? getColor("brand")),
+          : (mapping[colorLabels.get(color.key) ?? ""] ?? getColor("brand")),
       ]),
     );
   }, [model, colorLabels, palette, getColor]);
@@ -385,20 +460,21 @@ function useFlowColors({
   return { colorLabels, colorsByKey };
 }
 
-function getUniqueColorNames(
+function getUniqueColorLabels(
   colors: FlowColor[],
-  colorLabels: Map<string, string>,
+  colorColumn: DatasetColumn,
+  settings: ComputedVisualizationSettings,
 ): Map<string, string> {
-  const usedNames = new Set<string>();
+  const usedLabels = new Set<string>();
   return new Map(
     colors.map((color) => {
-      const label = colorLabels.get(color.key) ?? "";
-      let name = label;
-      for (let copy = 2; usedNames.has(name); copy += 1) {
-        name = `${label} (${copy})`;
+      const name = getColorLabel(color, colorColumn, settings);
+      let label = name;
+      for (let copy = 2; usedLabels.has(label); copy += 1) {
+        label = `${name} (${copy})`;
       }
-      usedNames.add(name);
-      return [color.key, name];
+      usedLabels.add(label);
+      return [color.key, label];
     }),
   );
 }
@@ -470,7 +546,7 @@ const FlowBands = memo(function FlowBands({
           return null;
         }
         const isDrillable =
-          isClickable && getLinkColorDimension(link, model, columns) !== null;
+          isClickable && isLinkDrillable(link, model, columns);
         return (
           <path
             key={link.key}
@@ -910,20 +986,27 @@ function getLinkClickObject(
   const link = model.linksByKey.get(linkKey);
   const source = link ? model.nodesByKey.get(link.sourceKey) : undefined;
   const target = link ? model.nodesByKey.get(link.targetKey) : undefined;
-  if (link == null || source == null || target == null) {
-    return null;
-  }
-  const colorDimension = getLinkColorDimension(link, model, columns);
-  if (colorDimension === null) {
+  if (
+    link == null ||
+    source == null ||
+    target == null ||
+    !isLinkDrillable(link, model, columns)
+  ) {
     return null;
   }
   const dimensions: ClickObjectDimension[] = [
     { value: source.value, column: columns.steps[source.stepIndex].column },
     { value: target.value, column: columns.steps[target.stepIndex].column },
   ];
-  if (colorDimension !== undefined) {
-    const position = columns.colorStepIndex < source.stepIndex ? 0 : 2;
-    dimensions.splice(position, 0, colorDimension);
+  const color = isColoredByAnotherStep(link, model, columns)
+    ? model.colors.find((candidate) => candidate.key === link.colorKey)
+    : undefined;
+  if (color != null) {
+    const { colorStepIndex } = columns;
+    dimensions.splice(colorStepIndex < source.stepIndex ? 0 : 2, 0, {
+      value: color.value,
+      column: columns.steps[colorStepIndex].column,
+    });
   }
   return {
     value: link.value,
@@ -934,33 +1017,36 @@ function getLinkClickObject(
 }
 
 /**
- * The color-by step's value a band's records must have: `undefined` when the
- * color-by step is one of the band's own steps, `null` when the band's
- * journeys ended before it.
+ * Whether a band's color comes from a step other than its own two.
  */
-function getLinkColorDimension(
+function isColoredByAnotherStep(
   link: FlowLink,
   model: FlowModel,
   columns: FlowColumns,
-): ClickObjectDimension | null | undefined {
+): boolean {
   const source = model.nodesByKey.get(link.sourceKey);
   const target = model.nodesByKey.get(link.targetKey);
-  const { colorStepIndex } = columns;
-  if (
-    source == null ||
-    target == null ||
-    colorStepIndex === source.stepIndex ||
-    colorStepIndex === target.stepIndex
-  ) {
-    return undefined;
-  }
-  const color = model.colors.find(
-    (candidate) => candidate.key === link.colorKey,
+  return (
+    source != null &&
+    target != null &&
+    columns.colorStepIndex !== source.stepIndex &&
+    columns.colorStepIndex !== target.stepIndex
   );
-  if (color == null || color.isEnded) {
-    return null;
-  }
-  return { value: color.value, column: columns.steps[colorStepIndex].column };
+}
+
+/**
+ * Every band can drill through except one of journeys that ended before a
+ * color-by step outside the band, which no values can pick out.
+ */
+function isLinkDrillable(
+  link: FlowLink,
+  model: FlowModel,
+  columns: FlowColumns,
+): boolean {
+  return (
+    link.colorKey !== ENDED_COLOR_KEY ||
+    !isColoredByAnotherStep(link, model, columns)
+  );
 }
 
 export const MaFlow = assignLazily(MaFlowComponent, MA_FLOW_DEFINITION);

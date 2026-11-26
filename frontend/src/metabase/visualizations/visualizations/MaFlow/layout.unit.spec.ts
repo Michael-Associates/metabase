@@ -117,6 +117,21 @@ describe("getFlowLayout", () => {
     expectEveryBoxInside(setup({ rows, height: 500 }), 900, 500);
   });
 
+  it("keeps a fair share of the space for the largest box when a step has a long tail of tiny values", () => {
+    const rows: RowValues[] = [
+      ["Form", "Big", "Won", 1000],
+      ...Array.from(
+        { length: 49 },
+        (_, index): RowValues => ["Form", `Small ${index}`, "Won", 1],
+      ),
+    ];
+
+    for (const height of [300, 500]) {
+      const big = setup({ rows, height }).nodes.get(nodeKey(1, "Big"));
+      expect(big?.height ?? 0).toBeGreaterThan(height * 0.4);
+    }
+  });
+
   it("keeps every box inside the space when a step has more values than fit at the minimum height", () => {
     const rows = Array.from(
       { length: 300 },

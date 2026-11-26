@@ -6,6 +6,7 @@ import {
   type VisualizationDefinition,
   type VisualizationSettingsDefinitions,
   columnSettings,
+  getOptionFromColumn,
   metricSetting,
 } from "metabase/viz-core";
 import { isDimension, isMetric } from "metabase-lib/v1/types/utils/isa";
@@ -55,6 +56,67 @@ export function getDefaultFlowValue(
   return (aggregation ?? candidates[candidates.length - 1])?.name;
 }
 
+type ColumnOption = {
+  name: string;
+  value: string;
+};
+
+export type FlowStepsProps = {
+  options: ColumnOption[];
+  addAnother: string | null;
+  columns: DatasetColumn[];
+  showColumnSetting: boolean;
+};
+
+/**
+ * What the steps picker offers: every grouping column but the size column,
+ * and another step while there are columns left and no slot is empty.
+ */
+export function getFlowStepsProps(
+  [{ data }]: RawSeries,
+  settings: ComputedVisualizationSettings,
+): FlowStepsProps {
+  const { value } = getFlowColumnNames(settings);
+  const options = data.cols
+    .filter((col) => isDimension(col) && col.name !== value)
+    .map(getOptionFromColumn);
+  const { count, areAllChosen } = getSavedStepSlots(settings);
+  return {
+    options,
+    addAnother:
+      options.length > count && count < MAX_FLOW_STEPS && areAllChosen
+        ? t`Add a step`
+        : null,
+    columns: data.cols,
+    showColumnSetting: true,
+  };
+}
+
+export type FlowValueProps = {
+  options: ColumnOption[];
+  columns: DatasetColumn[];
+  showColumnSetting: boolean;
+  autoOpenWhenUnset: boolean;
+};
+
+/**
+ * What the size picker offers: every number column that isn't a step.
+ */
+export function getFlowValueProps(
+  [{ data }]: RawSeries,
+  settings: ComputedVisualizationSettings,
+): FlowValueProps {
+  const { steps } = getFlowColumnNames(settings);
+  return {
+    options: data.cols
+      .filter((col) => isMetric(col) && !steps.includes(col.name))
+      .map(getOptionFromColumn),
+    columns: data.cols,
+    showColumnSetting: true,
+    autoOpenWhenUnset: false,
+  };
+}
+
 const FLOW_SETTINGS: VisualizationSettingsDefinitions = {
   ...columnSettings({ getHidden: () => true }),
   [FLOW_SETTING_KEYS.steps]: {
@@ -85,37 +147,18 @@ const FLOW_SETTINGS: VisualizationSettingsDefinitions = {
           (typeof slot === "string" && groupingNames.includes(slot)),
       );
     },
-    getProps: (
-      [{ data }]: RawSeries,
-      settings: ComputedVisualizationSettings,
-    ) => {
-      const { value } = getFlowColumnNames(settings);
-      const options = data.cols
-        .filter((col) => isDimension(col) && col.name !== value)
-        .map((col) => ({ name: col.display_name, value: col.name }));
-      const { count, areAllChosen } = getSavedStepSlots(settings);
-      return {
-        options,
-        addAnother:
-          options.length > count && count < MAX_FLOW_STEPS && areAllChosen
-            ? t`Add a step`
-            : null,
-        columns: data.cols,
-        showColumnSetting: true,
-      };
-    },
+    getProps: getFlowStepsProps,
   },
   ...metricSetting(FLOW_SETTING_KEYS.value, {
     getSection: () => t`Data`,
     get title() {
       return t`Size of each journey`;
     },
-    showColumnSetting: true,
     persistDefault: true,
     dashboard: false,
-    autoOpenWhenUnset: false,
     getDefault: ([{ data }], settings) =>
       getDefaultFlowValue(data.cols, getFlowColumnNames(settings).steps),
+    getProps: getFlowValueProps,
     readDependencies: [FLOW_SETTING_KEYS.steps],
   }),
   [FLOW_SETTING_KEYS.colorBy]: {
