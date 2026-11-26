@@ -86,7 +86,7 @@ const setup = ({
   const checkRenderable = () =>
     MA_FLOW_DEFINITION.checkRenderable(series, settings);
   const getStepsProps = () =>
-    MA_FLOW_DEFINITION.settings["ma_flow.steps"]?.getProps?.(
+    MA_FLOW_DEFINITION.settings?.["ma_flow.steps"]?.getProps?.(
       series,
       settings,
       () => undefined,
