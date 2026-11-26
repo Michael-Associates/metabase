@@ -1,8 +1,9 @@
 # Michael and Associates fork of Metabase
 
-This fork is open-source Metabase with our own chart types added. Everything we
-change lives on the `ma-main` branch, which started from Metabase's `v0.65.3.7`
-release. Metabase's code is otherwise untouched; their releases live in
+This fork is open-source Metabase with our own chart types and our firm's
+branding added. Everything we change lives on the `ma-main` branch, which
+started from Metabase's `v0.65.3.7` release, and is listed below; the rest of
+Metabase's code is untouched. Their releases live in
 [metabase/metabase](https://github.com/metabase/metabase).
 
 It's an experiment. It runs only in its own Railway project, "Metabase Fork
@@ -22,8 +23,21 @@ staging, runs Metabase's official image and never this fork.
   chart picker: `register.ts`, `metabase-types/api/visualization.ts`,
   `viz-core/lib/sensibility.ts`, `EmptyVizState/utils.ts` and
   `embedding/mcp/utils/getMcpChartTypes.ts`.
+- Branding, in Metabase's own files:
+  - `common/components/LogoIcon/`: `MaLogoIcon.tsx` and its stylesheet draw
+    the firm's "MA" icon, and `LogoIcon.tsx` uses it as the app's logo. The
+    sample database's row in `DatabaseEngineList.tsx` keeps Metabase's logo,
+    since that database is Metabase's.
+  - `nav/components/AppBar/AppBarLogo.tsx`: "M&A Data Platform" next to the
+    logo.
+  - `home/components/HomeGreeting/HomeGreeting.tsx`: "Welcome to the Michael
+    and Associates Data Platform" in place of Metabase's random greetings.
+  - `nav/components/AboutModal/AboutModal.tsx`: says this is our build of
+    Metabase and links to this repository, as the AGPL asks of a modified
+    version. Metabase's trademark line stays.
 - `.github/workflows/ma-fork.yml`: checks and builds every pull request, and
-  publishes every merge as a release.
+  publishes every merge as a release. It runs the unit tests of every folder
+  above.
 - `ma/deploy/Dockerfile` (added with the first release): what Railway runs.
   It is Metabase's official image of the same version with our uberjar in
   place of theirs, checked against the release's SHA-256.
@@ -38,7 +52,7 @@ charts.
 ## How a change reaches the sandbox
 
 1. Open a pull request into `ma-main`. The workflow lints, type-checks, runs
-   the visualization tests and builds the uberjar.
+   the unit tests of our folders and builds the uberjar.
 2. Merge it. The workflow builds the uberjar again and publishes it as a GitHub
    release named like `v0.65.3.7-ma.12`, with its SHA-256 in the notes.
 3. Open a second pull request that points `ma/deploy/Dockerfile` at that release
@@ -62,7 +76,8 @@ onto the new release instead:
 
 1. `git fetch upstream tag <new tag>` and create a branch from the new tag.
 2. Cherry-pick our commits from `ma-main` onto it. Expect small conflicts in
-   the five registration files above.
+   the Metabase files listed above: the five chart registrations and the
+   branding files.
 3. Delete every file in `.github/workflows/` except `ma-fork.yml`, including
    any new one the release brought in. Leave `.github/actions/` alone:
    `ma-fork.yml` uses those.

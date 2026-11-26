@@ -1,22 +1,16 @@
 import cx from "classnames";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { t } from "ttag";
-import _ from "underscore";
 
 import { MetabotLogo } from "metabase/common/components/MetabotLogo";
 import animationStyles from "metabase/css/core/animation.module.css";
-import { getUser } from "metabase/current-user";
-import { useSelector } from "metabase/redux";
 import { useSetting } from "metabase/settings";
 import { Flex, Text, Tooltip } from "metabase/ui";
 
 import S from "./HomeGreeting.module.css";
 
 export const HomeGreeting = (): JSX.Element | null => {
-  const user = useSelector(getUser);
   const showGreeting = useSetting("show-metabot");
-  const name = user?.first_name;
-  const message = useMemo(() => getMessage(name), [name]);
 
   if (!showGreeting) {
     return null;
@@ -34,23 +28,12 @@ export const HomeGreeting = (): JSX.Element | null => {
         fz={{ base: "1.125rem", xl: "1.25rem" }}
         ml="0.5rem"
       >
-        {message}
+        {/* Michael & Associates fork: one welcome, in place of Metabase's
+            random greetings. */}
+        {t`Welcome to the Michael and Associates Data Platform`}
       </Text>
     </Flex>
   );
-};
-
-const getMessage = (name: string | null | undefined): string => {
-  const namePart = name ? `, ${name}` : "";
-  const options = [
-    t`Hey there${namePart}`,
-    t`How's it going${namePart}?`,
-    t`Howdy${namePart}`,
-    t`Greetings${namePart}`,
-    t`Good to see you${namePart}`,
-  ];
-
-  return _.sample(options) ?? "";
 };
 
 export const MetabotGreeting = () => {

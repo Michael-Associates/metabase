@@ -45,7 +45,9 @@ const setup = ({ currentUser, landingPageIllustration }: SetupOpts = {}) => {
 describe("HomeLayout", () => {
   it("should render correctly", () => {
     setup({ currentUser: createMockUser({ first_name: "Test" }) });
-    expect(screen.getByText(/Test/)).toBeInTheDocument();
+    expect(screen.getByTestId("greeting-message")).toHaveTextContent(
+      "Welcome to the Michael and Associates Data Platform",
+    );
   });
 
   it("should show customize button when user is an admin", () => {

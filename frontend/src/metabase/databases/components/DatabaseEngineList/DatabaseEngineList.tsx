@@ -3,7 +3,7 @@ import { t } from "ttag";
 
 import { useListEnginesQuery } from "metabase/api";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
-import { LogoIcon } from "metabase/common/components/LogoIcon";
+import { DefaultLogoIcon } from "metabase/common/components/LogoIcon";
 import { MAX_INITIAL_ENGINES_SHOWN } from "metabase/databases/constants";
 import {
   getEngineLogo,
@@ -231,7 +231,9 @@ const SampleDatabaseIndicator = () => {
       className={S.sampleDbIndicator}
     >
       <Flex align="center">
-        <LogoIcon height={20} width={24} />
+        {/* Michael & Associates fork: the sample database is Metabase's, so
+            it keeps Metabase's logo. */}
+        <DefaultLogoIcon height={20} width={24} />
         <Text ml="sm" mr="xxs">
           {t`Sample Database for testing`}
         </Text>

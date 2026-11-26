@@ -28,7 +28,9 @@ describe("HomeGreeting", () => {
       showLogo: true,
     });
 
-    expect(screen.getByText(/John/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Welcome to the Michael and Associates Data Platform"),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: "Metabot" })).toHaveLength(2);
   });
 
@@ -38,7 +40,9 @@ describe("HomeGreeting", () => {
       showLogo: false,
     });
 
-    expect(screen.queryByText(/John/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Welcome to the Michael and Associates Data Platform"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 });

@@ -68,6 +68,19 @@ describe("AppBar", () => {
       expect(screen.getByTestId("new-button")).toBeInTheDocument();
     });
 
+    it("should show the firm's logo and the app's title", () => {
+      const props = getProps({ isNavBarEnabled: true, isLogoVisible: true });
+
+      renderWithProviders(<AppBar {...props} />);
+
+      expect(
+        screen.getByRole("img", { name: "Michael & Associates" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("ma-app-title")).toHaveTextContent(
+        "M&A Data Platform",
+      );
+    });
+
     it("should render the desktop app bar for saved questions and dashboards", () => {
       const props = getProps({
         isCollectionPathVisible: true,
@@ -130,6 +143,7 @@ describe("AppBar", () => {
       expect(screen.getByTestId("sidebar-toggle")).toBeInTheDocument();
       expect(screen.getByTestId("search-button")).toBeInTheDocument();
       expect(screen.queryByTestId("new-button")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("ma-app-title")).not.toBeInTheDocument();
     });
 
     it("should render the mobile app bar for saved questions and dashboards", () => {

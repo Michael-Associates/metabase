@@ -58,7 +58,10 @@ describe("scenarios > auth > signin", () => {
     cy.findByRole("checkbox", { name: "Remember me" }).should("not.be.checked");
     cy.button("Sign in").click();
     cy.wait("@signIn").its("response.statusCode").should("eq", 200);
-    cy.findByTestId("greeting-message").should("contain.text", "Bobby");
+    cy.findByTestId("greeting-message").should(
+      "contain.text",
+      "Welcome to the Michael and Associates Data Platform",
+    );
   });
 
   it("should redirect to an unsaved question after login", () => {
