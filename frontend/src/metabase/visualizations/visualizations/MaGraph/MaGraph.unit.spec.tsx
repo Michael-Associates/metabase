@@ -138,7 +138,10 @@ describe("MaGraph", () => {
     const { frame } = setup();
 
     expect(frame).toHaveAttribute("sandbox", "allow-scripts");
-    expect(frame.getAttribute("src")).toMatch(/\/api\/ma-graph\/frame$/);
+    expect(frame).toHaveAttribute(
+      "src",
+      expect.stringMatching(/\/api\/ma-graph\/frame$/),
+    );
   });
 
   it("sends the graph, the results and the size once the frame is ready", () => {
