@@ -529,7 +529,9 @@
    view — one of the two displays the model editor offers, so a tool that omits it can neither build
    a list-view model nor leave one alone when updating it."
   ["table" "list" "bar" "line" "pie" "scatter" "area" "row" "combo" "pivot"
-   "scalar" "smartscalar" "gauge" "progress" "funnel" "map" "waterfall" "sankey"])
+   "scalar" "smartscalar" "gauge" "progress" "funnel" "map" "waterfall" "sankey"
+   ;; Michael and Associates fork: custom graphs, see learn("custom-graphs").
+   "ma_graph"])
 
 (def card-display-enum
   "[[card-display-values]] as an undescribed Malli enum."

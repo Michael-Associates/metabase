@@ -27,6 +27,7 @@ const MCP_CHART_TYPE_ICONS: Record<CardDisplayType, IconName> = {
   list: "table2",
   ma_heatmap: "grid",
   ma_flow: "arrow_split",
+  ma_graph: "code_block",
 };
 
 // Chart types that can be the alternative.

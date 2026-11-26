@@ -22,13 +22,15 @@ import type { CardDisplayType } from "metabase-types/api";
 
 /**
  * The "table" and the "object" (detail) charts can always display the data
- * using the raw table alone, so they don't need an empty state.
+ * using the raw table alone, so they don't need an empty state. A custom graph
+ * ("ma_graph") draws whatever its own code says, so it has none either.
  */
 export type ExcludedEmptyVizDisplayTypes =
   | "table"
   | "list"
   | "object"
-  | "boxplot";
+  | "boxplot"
+  | "ma_graph";
 type SupportedDisplayType = Exclude<
   CardDisplayType,
   ExcludedEmptyVizDisplayTypes

@@ -11,6 +11,7 @@
    [metabase.collections.models.collection :as collection]
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.core :as lib]
+   [metabase.ma-graph.core :as ma-graph]
    [metabase.mcp.db :as mcp.db]
    [metabase.mcp.scope :as mcp.scope]
    [metabase.mcp.v2.common :as common]
@@ -230,7 +231,8 @@
    :collection_id          (:collection_id card)
    :collection_path        (collection-path (:collection_id card))
    :description            (:description card)
-   :visualization_settings (or (:visualization_settings card) {})})
+   ;; Michael and Associates fork: custom graph code is summarized, see [[ma-graph/summarize-graph-code]].
+   :visualization_settings (ma-graph/summarize-graph-code (or (:visualization_settings card) {}))})
 
 (def ^:private visibility-type-strs
   "String form of `::lib.schema.metadata/column.visibility-type`'s enum — the args schema and the
@@ -554,7 +556,8 @@
    [:collection_position {:optional true}
     [:maybe [:int {:description "Pin position within the collection; omit to leave it unpinned."}]]]
    [:display {:optional true}
-    [:maybe {:description "Visualization type. learn(\"visualization-settings\") covers the choice."}
+    [:maybe {:description (str "Visualization type. learn(\"visualization-settings\") covers the choice; "
+                               "learn(\"custom-graphs\") covers ma_graph, a card drawn by an HTML page you write.")}
      common/card-display-enum]]
    [:visualization_settings {:optional true}
     [:maybe [:map {:description (str "Display settings for the chosen `display`; learn(\"visualization-settings\") "

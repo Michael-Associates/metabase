@@ -5,6 +5,7 @@
    [metabase.dashboards.db :as dashboards.db]
    [metabase.dashboards.schema :as dashboards.schema]
    [metabase.lib.core :as lib]
+   [metabase.ma-graph.core :as ma-graph]
    [metabase.models.interface :as mi]
    [metabase.models.serialization :as serdes]
    [metabase.parameters.core :as parameters]
@@ -63,6 +64,9 @@
 
 (t2/define-before-insert :model/DashboardCard
   [dashcard]
+  ;; Michael and Associates fork: a dashcard's settings override its card's, so only admins put custom graph code
+  ;; there too.
+  (ma-graph/check-graph-authoring! dashcard nil)
   (-> (merge {:parameter_mappings     []
               :visualization_settings {}
               :inline_parameters      []}
@@ -71,6 +75,8 @@
 
 (t2/define-before-update :model/DashboardCard
   [dashcard]
+  (when (contains? (t2/changes dashcard) :visualization_settings)
+    (ma-graph/check-graph-authoring! dashcard (t2/original dashcard)))
   (validate-dashcard-on-write dashcard))
 
 ;;; Update visualizer dashboard cards in stats to have card id references instead of entity ids

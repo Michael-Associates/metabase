@@ -40,6 +40,7 @@
    [metabase.llm.api]
    [metabase.logger.api]
    [metabase.login-history.api]
+   [metabase.ma-graph.api]
    [metabase.mcp.callback-api]
    [metabase.mcp.core :as mcp]
    [metabase.mcp.v2.api]
@@ -256,6 +257,9 @@
    "/llm"                  (+auth metabase.llm.api/routes)
    "/logger"               (+auth 'metabase.logger.api)
    "/login-history"        (+auth 'metabase.login-history.api)
+   ;; Michael and Associates fork: the sandboxed page custom graphs run in. No auth: it is inert until a card posts
+   ;; it a graph, and public dashboards need it too. See [[metabase.ma-graph.api]].
+   "/ma-graph"             metabase.ma-graph.api/routes
    ;; `/mcp` is a legacy alias of the canonical `/metabase-mcp` below, kept for back-compat with
    ;; existing clients. See [[metabase.mcp.paths/endpoint-paths]].
    "/mcp"                  (metabase.mcp.v2.api/+mcp-enabled metabase.mcp.v2.api/handler)

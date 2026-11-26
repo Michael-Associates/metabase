@@ -57,6 +57,11 @@ import { GAUGE_CHART_DEFINITION } from "./visualizations/Gauge/definition";
 import { LINE_CHART_DEFINITION } from "./visualizations/LineChart/definition";
 import { LIST_DEFINITION } from "./visualizations/List/definition";
 import { MA_FLOW_DEFINITION } from "./visualizations/MaFlow/definition";
+import { ChartSettingGraphCode } from "./visualizations/MaGraph/ChartSettingGraphCode";
+import {
+  MA_GRAPH_CODE_WIDGET,
+  MA_GRAPH_DEFINITION,
+} from "./visualizations/MaGraph/definition";
 import { MA_HEATMAP_DEFINITION } from "./visualizations/MaHeatmap/definition";
 import { MAP_VIZ_DEFINITION } from "./visualizations/Map/definition";
 import { OBJECT_DETAIL_DEFINITION } from "./visualizations/ObjectDetail/definition";
@@ -196,6 +201,11 @@ function registerVisualizationComponents() {
       /* webpackChunkName: "viz-ma-heatmap" */ "./visualizations/MaHeatmap"
     ).then((module) => module.MaHeatmap),
   );
+  registerVisualization(MA_GRAPH_DEFINITION, () =>
+    import(
+      /* webpackChunkName: "viz-ma-graph" */ "./visualizations/MaGraph"
+    ).then((module) => module.MaGraph),
+  );
 
   setDefaultVisualization(TABLE_DEFINITION);
 }
@@ -233,6 +243,7 @@ function registerVisualizationSettingWidgets() {
     pieSliceName: SliceNameWidget,
     smartScalarComparison: SmartScalarComparisonWidget,
     treemapGroups: TreemapGroupsPicker,
+    [MA_GRAPH_CODE_WIDGET]: ChartSettingGraphCode,
   });
 }
 

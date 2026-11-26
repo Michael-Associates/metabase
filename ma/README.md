@@ -23,6 +23,27 @@ staging, runs Metabase's official image and never this fork.
   chart picker: `register.ts`, `metabase-types/api/visualization.ts`,
   `viz-core/lib/sensibility.ts`, `EmptyVizState/utils.ts` and
   `embedding/mcp/utils/getMcpChartTypes.ts`.
+- Custom graphs (display `ma_graph`): a card whose visualization is a whole
+  HTML page, with inline scripts and styles, fed the card's live results. It
+  is how graphs built like our standalone HTML reports run inside Metabase.
+  - `frontend/src/metabase/visualizations/visualizations/MaGraph/`: the card,
+    which frames the page and hands it the graph and the results over a
+    private message channel, and the admin-only code editor in its settings.
+  - `src/metabase/ma_graph/` and `resources/ma_graph/frame.html`: the page a
+    graph runs in, at `/api/ma-graph/frame`. Its own Content-Security-Policy
+    sandboxes it into a unique origin and blocks the network, so a graph can't
+    act as the signed-in user or send data anywhere.
+  - `src/metabase/ma_graph/core.clj`: only admins may save graph code. The Card
+    and DashboardCard save hooks in `queries/models/card.clj` and
+    `dashboards/models/dashboard_card.clj` enforce it, so it holds for the UI,
+    the REST API and the MCP tools alike.
+  - Metabase's built-in MCP server (`/api/metabase-mcp`): `ma_graph` in
+    `question_write`'s displays (`mcp/v2/common.clj`), a `custom-graphs` guide
+    in `learn` (`resources/mcp/v2/skills/custom-graphs/`, `mcp/v2/skills.clj`,
+    `mcp/v2/tools/learn.clj`) with the data contract and our house style, and
+    write responses that summarize the graph code instead of echoing it.
+  - Smaller registrations: `api_routes/routes.clj` and
+    `dashboards/constants.cljc` (a full-width default size).
 - Branding, in Metabase's own files:
   - `common/components/LogoIcon/`: `MaLogoIcon.tsx` and its stylesheet draw
     the firm's "MA" icon, and `LogoIcon.tsx` uses it as the app's logo. The
@@ -37,7 +58,8 @@ staging, runs Metabase's official image and never this fork.
     version. Metabase's trademark line stays.
 - `.github/workflows/ma-fork.yml`: checks and builds every pull request, and
   publishes every merge as a release. It runs the unit tests of every folder
-  above.
+  above, the backend tests of custom graphs, and checks that the built
+  uberjar serves the graph page with its sealed policy.
 - `ma/deploy/Dockerfile` (added with the first release): what Railway runs.
   It is Metabase's official image of the same version with our uberjar in
   place of theirs, checked against the release's SHA-256.
@@ -45,9 +67,9 @@ staging, runs Metabase's official image and never this fork.
 Metabase's own workflow files are removed from `ma-main`, so only `ma-fork.yml`
 runs here. They would otherwise fire on our pull requests and releases.
 
-Heatmap and Flow cards show as tables in emailed subscriptions, Slack alerts
-and PDF exports: Metabase draws those on the server, which doesn't know our
-charts.
+Heatmap, Flow and custom graph cards show as tables in emailed subscriptions,
+Slack alerts and PDF exports: Metabase draws those on the server, which doesn't
+know our charts.
 
 ## How a change reaches the sandbox
 

@@ -69,7 +69,14 @@
                        "the output-column-name rule, minimum settings per chart family. "
                        "Reference `settings`: the per-chart key catalog incl. column_settings, series_settings, "
                        "click behavior."))
-    :references  ["settings"]}])
+    :references  ["settings"]}
+   ;; Michael and Associates fork: custom graphs.
+   {:name        "custom-graphs"
+    :description (message/raw
+                  (str "Custom graphs (display ma_graph): a card whose visualization is a whole HTML page you "
+                       "write, fed the card's live results. The data contract, the sandbox rules, sizing and "
+                       "dark mode, and the firm's house style. Read before writing your first ma_graph card."))
+    :references  []}])
 
 (def ^:private content
   "pack name -> {:skill <delay> :references {ref-name <delay>}} — resolved (and thus existence-

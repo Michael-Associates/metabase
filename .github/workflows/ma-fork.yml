@@ -60,6 +60,12 @@ jobs:
           "frontend/src/metabase/app/nav/"
           "frontend/src/metabase/home/components/"
           "frontend/src/metabase/databases/components/DatabaseEngineList/"
+      # The backend of custom graphs: who may save graph code, the sealed page
+      # graphs run in, and the MCP learn guides, which include ours.
+      - name: Run backend tests for our changes
+        run: >-
+          clojure -X:dev:ci:oss:oss-dev:test
+          :only '[metabase.ma-graph.core-test metabase.ma-graph.api-test metabase.mcp.v2.tools.learn-test]'
 
   uberjar:
     name: Build the uberjar
@@ -109,6 +115,13 @@ jobs:
         run: while ! curl -s 'http://localhost:3000/api/health' | grep '{"status":"ok"}'; do sleep 1; done
       - name: Check the version it reports
         run: curl -s 'http://localhost:3000/api/session/properties' | grep -F "\"tag\":\"${MA_VERSION}\""
+      # Custom graphs run their own code, so the page they run in must keep
+      # its sealed policy in the real build too.
+      - name: Check the custom graph page is sealed
+        run: |
+          set -euo pipefail
+          headers=$(curl -s -D - -o /dev/null 'http://localhost:3000/api/ma-graph/frame')
+          grep -qi "^content-security-policy: sandbox allow-scripts; default-src 'none';" <<< "$headers"
       - name: Record the checksum and version
         working-directory: ./target/uberjar
         run: |

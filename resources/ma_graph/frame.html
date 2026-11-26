@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Custom graph</title>
+</head>
+<body>
+<script>
+"use strict";
+// Michael and Associates fork: the page a custom graph runs in (GET /api/ma-graph/frame).
+//
+// The custom graph card frames this page, waits for "ma-graph:ready", then posts one "ma-graph:render" message with
+// the graph's HTML, the card's results, and a MessagePort. This page writes the graph's HTML into itself, in front of
+// a small runtime that gives the graph `window.metabase` and carries later updates over the port: new results when a
+// filter changes, a new size, a new color scheme. Only the first render message is used, and only from the page that
+// framed this one.
+(function () {
+  var host = window.parent;
+  var rendered = false;
+
+  // Runs inside the graph's page, before the graph's own scripts. Written out with toString, so it must not refer to
+  // anything outside itself.
+  function runtime() {
+    var bridge = window.__maGraph;
+    delete window.__maGraph;
+    var port = bridge.port;
+    var callbacks = [];
+    var loaded = false;
+    var state = { data: shape(bridge.data), context: bridge.context };
+
+    function shape(data) {
+      var columns = data.columns.slice();
+      var rows = data.rows;
+      var records = rows.map(function (row) {
+        var record = {};
+        columns.forEach(function (column, index) {
+          record[column.name] = row[index];
+        });
+        return record;
+      });
+      return { columns: columns, rows: rows, records: records };
+    }
+
+    function report(error) {
+      var message = error && error.message ? error.message : String(error);
+      port.postMessage({ type: "error", message: message });
+    }
+
+    function run(callback) {
+      try {
+        callback(state.data, state.context);
+      } catch (error) {
+        report(error);
+      }
+    }
+
+    function applyColorScheme() {
+      document.documentElement.setAttribute("data-color-scheme", state.context.colorScheme);
+    }
+
+    window.metabase = Object.freeze({
+      get data() {
+        return state.data;
+      },
+      get context() {
+        return state.context;
+      },
+      onRender: function (callback) {
+        if (typeof callback !== "function") {
+          throw new TypeError("metabase.onRender needs a function");
+        }
+        callbacks.push(callback);
+        if (loaded) {
+          run(callback);
+        }
+      },
+    });
+
+    window.addEventListener("error", function (event) {
+      report(event.error || event.message);
+    });
+    window.addEventListener("unhandledrejection", function (event) {
+      report(event.reason);
+    });
+
+    port.onmessage = function (event) {
+      var message = event.data;
+      if (!message || message.type !== "update") {
+        return;
+      }
+      if (message.data) {
+        state.data = shape(message.data);
+      }
+      if (message.context) {
+        state.context = message.context;
+        applyColorScheme();
+      }
+      if (loaded) {
+        callbacks.forEach(run);
+      }
+    };
+
+    applyColorScheme();
+    document.addEventListener("DOMContentLoaded", function () {
+      loaded = true;
+      callbacks.forEach(run);
+    });
+  }
+
+  // The runtime goes right after the graph's doctype, so the graph keeps standards mode.
+  var DOCTYPE = /^\s*<!doctype[^>]*>/i;
+
+  function render(html, data, context, port) {
+    window.__maGraph = { port: port, data: data, context: context };
+    var runtimeTag = "<script>(" + runtime.toString() + ")();<\/script>";
+    var doctype = html.match(DOCTYPE);
+    var page = doctype
+      ? doctype[0] + runtimeTag + html.slice(doctype[0].length)
+      : "<!doctype html>" + runtimeTag + html;
+    document.open();
+    document.write(page);
+    document.close();
+  }
+
+  window.addEventListener("message", function (event) {
+    var message = event.data;
+    if (
+      rendered ||
+      event.source !== host ||
+      !message ||
+      message.type !== "ma-graph:render" ||
+      typeof message.html !== "string" ||
+      !event.ports ||
+      !event.ports[0]
+    ) {
+      return;
+    }
+    rendered = true;
+    render(message.html, message.data, message.context, event.ports[0]);
+  });
+
+  host.postMessage({ type: "ma-graph:ready" }, "*");
+})();
+</script>
+</body>
+</html>
