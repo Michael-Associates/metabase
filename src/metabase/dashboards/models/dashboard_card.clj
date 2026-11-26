@@ -62,22 +62,27 @@
       validate-link-card-entity-id
       validate-click-behavior-target-ids))
 
+;; Michael and Associates fork: custom graph code lives on cards only. A dashcard never draws code of its own, so any it
+;; carries (copied in by "Reset to defaults" or the visualizer) is dropped for everyone. See [[metabase.ma-graph.core]].
+(defn- strip-graph-code
+  [dashcard]
+  (cond-> dashcard
+    (contains? dashcard :visualization_settings) (update :visualization_settings ma-graph/strip-graph-code)))
+
 (t2/define-before-insert :model/DashboardCard
   [dashcard]
-  ;; Michael and Associates fork: a dashcard's settings override its card's, so only admins put custom graph code
-  ;; there too.
-  (ma-graph/check-graph-authoring! dashcard nil)
   (-> (merge {:parameter_mappings     []
               :visualization_settings {}
               :inline_parameters      []}
              dashcard)
+      strip-graph-code
       validate-dashcard-on-write))
 
 (t2/define-before-update :model/DashboardCard
   [dashcard]
-  (when (contains? (t2/changes dashcard) :visualization_settings)
-    (ma-graph/check-graph-authoring! dashcard (t2/original dashcard)))
-  (validate-dashcard-on-write dashcard))
+  (-> dashcard
+      (cond-> (contains? (t2/changes dashcard) :visualization_settings) strip-graph-code)
+      validate-dashcard-on-write))
 
 ;;; Update visualizer dashboard cards in stats to have card id references instead of entity ids
 (t2/define-after-select :model/DashboardCard

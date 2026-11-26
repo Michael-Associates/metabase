@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLatest } from "react-use";
 import { t } from "ttag";
 
@@ -35,7 +35,12 @@ function MaGraphComponent({
     isDashboard,
   });
   const { ref, width, height } = useContainerSize();
-  const graphData = useMemo(() => getGraphData(data), [data]);
+  // A card without results (a virtual card, or one still loading) has
+  // nothing for a graph to draw.
+  const graphData = useMemo(
+    () => (data != null ? getGraphData(data) : null),
+    [data],
+  );
   const context = useMemo<GraphContext>(
     () => ({ width, height, colorScheme }),
     [width, height, colorScheme],
@@ -43,7 +48,7 @@ function MaGraphComponent({
 
   return (
     <div ref={ref} className={S.root} data-testid="ma-graph">
-      {width > 0 && height > 0 && (
+      {graphData != null && width > 0 && height > 0 && (
         <GraphFrame
           // A new page starts in a fresh frame: the page writes the graph
           // into itself once, so it can't take a second one.
@@ -63,6 +68,11 @@ type GraphFrameProps = {
   context: GraphContext;
 };
 
+type SentState = {
+  data: GraphData;
+  context: GraphContext;
+};
+
 /**
  * The sealed frame a graph runs in. The frame announces itself with a ready
  * message; this answers it once with the graph, its data and a private
@@ -74,13 +84,16 @@ function GraphFrame({ html, data, context }: GraphFrameProps) {
   const [port, setPort] = useState<MessagePort | null>(null);
   const [error, setError] = useState<string | null>(null);
   const latest = useLatest({ html, data, context });
+  // What the frame last received, so each change is sent once, and the
+  // first render isn't followed by updates the frame already has.
+  const sent = useRef<SentState | null>(null);
 
   useEffect(() => {
     if (frame == null) {
       return;
     }
     let channel: MessageChannel | null = null;
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = (event: MessageEvent<unknown>) => {
       if (
         channel != null ||
         event.source !== frame.contentWindow ||
@@ -89,12 +102,13 @@ function GraphFrame({ html, data, context }: GraphFrameProps) {
         return;
       }
       channel = new MessageChannel();
-      channel.port1.onmessage = (portEvent: MessageEvent) => {
+      channel.port1.onmessage = (portEvent: MessageEvent<unknown>) => {
         if (isErrorMessage(portEvent.data)) {
           setError(portEvent.data.message);
         }
       };
       const current = latest.current;
+      sent.current = { data: current.data, context: current.context };
       // The frame's origin is unique, so "*" is the only target that
       // reaches it; the check on event.source above is what makes sure this
       // answers our own frame.
@@ -114,17 +128,31 @@ function GraphFrame({ html, data, context }: GraphFrameProps) {
     return () => {
       window.removeEventListener("message", handleMessage);
       channel?.port1.close();
+      sent.current = null;
       setPort(null);
     };
   }, [frame, latest]);
 
   useEffect(() => {
+    if (port == null || sent.current == null || sent.current.data === data) {
+      return;
+    }
+    sent.current = { ...sent.current, data };
     setError(null);
-    port?.postMessage({ type: MA_GRAPH_MESSAGES.update, data });
+    port.postMessage({ type: MA_GRAPH_MESSAGES.update, data });
   }, [port, data]);
 
   useEffect(() => {
-    port?.postMessage({ type: MA_GRAPH_MESSAGES.update, context });
+    if (
+      port == null ||
+      sent.current == null ||
+      sent.current.context === context
+    ) {
+      return;
+    }
+    sent.current = { ...sent.current, context };
+    setError(null);
+    port.postMessage({ type: MA_GRAPH_MESSAGES.update, context });
   }, [port, context]);
 
   return (
@@ -141,9 +169,9 @@ function GraphFrame({ html, data, context }: GraphFrameProps) {
         data-testid="ma-graph-frame"
       />
       {error != null && (
-        <Stack className={S.error} gap="xs" data-testid="ma-graph-error">
-          <Text fw="bold">{t`The graph's code failed`}</Text>
-          <Text c="text-secondary" ff="monospace" fz="sm">
+        <Stack className={S.error} gap={2} data-testid="ma-graph-error">
+          <Text fw="bold" fz="sm">{t`The graph's code failed`}</Text>
+          <Text c="text-secondary" ff="monospace" fz="xs">
             {error}
           </Text>
         </Stack>

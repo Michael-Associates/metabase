@@ -31,19 +31,28 @@ staging, runs Metabase's official image and never this fork.
     private message channel, and the admin-only code editor in its settings.
   - `src/metabase/ma_graph/` and `resources/ma_graph/frame.html`: the page a
     graph runs in, at `/api/ma-graph/frame`. Its own Content-Security-Policy
-    sandboxes it into a unique origin and blocks the network, so a graph can't
-    act as the signed-in user or send data anywhere.
-  - `src/metabase/ma_graph/core.clj`: only admins may save graph code. The Card
-    and DashboardCard save hooks in `queries/models/card.clj` and
-    `dashboards/models/dashboard_card.clj` enforce it, so it holds for the UI,
-    the REST API and the MCP tools alike.
+    sandboxes it into a unique origin, so a graph can't act as the signed-in
+    user, and blocks requests, images, fonts, forms, frames and WebRTC. Trusted
+    Types stop graph code from turning text into HTML or code, so a value in
+    the data can't run as script (Chrome and Edge enforce it). What it can't
+    block is the page navigating itself to a host the app allows in frames;
+    that takes code written to do it, and only admins write graph code.
+  - `src/metabase/ma_graph/core.clj`: only admins may save graph code, which
+    lives on cards only. The Card save hooks in `queries/models/card.clj`
+    refuse a non-admin write that adds, changes or removes it anywhere in the
+    settings, so the rule holds for the UI, the REST API and the MCP tools
+    alike. The DashboardCard save hooks in
+    `dashboards/models/dashboard_card.clj` drop any graph code a dashboard card
+    carries, for everyone.
   - Metabase's built-in MCP server (`/api/metabase-mcp`): `ma_graph` in
     `question_write`'s displays (`mcp/v2/common.clj`), a `custom-graphs` guide
     in `learn` (`resources/mcp/v2/skills/custom-graphs/`, `mcp/v2/skills.clj`,
-    `mcp/v2/tools/learn.clj`) with the data contract and our house style, and
-    write responses that summarize the graph code instead of echoing it.
-  - Smaller registrations: `api_routes/routes.clj` and
-    `dashboards/constants.cljc` (a full-width default size).
+    `mcp/v2/tools/learn.clj`) with the data contract, the sandbox rules and
+    our house style, and write responses that report the graph code's length
+    instead of echoing it. An update that leaves the code out keeps it.
+  - Smaller registrations: `api_routes/routes.clj`,
+    `dashboards/constants.cljc` (a full-width default size), and the
+    `ma-graph` module in `.clj-kondo/config/modules/config.edn`.
 - Branding, in Metabase's own files:
   - `common/components/LogoIcon/`: `MaLogoIcon.tsx` and its stylesheet draw
     the firm's "MA" icon, and `LogoIcon.tsx` uses it as the app's logo. The

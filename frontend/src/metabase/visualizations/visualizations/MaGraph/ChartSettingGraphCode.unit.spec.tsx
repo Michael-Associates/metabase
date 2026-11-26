@@ -23,7 +23,11 @@ jest.mock("metabase/common/components/CodeEditor", () => ({
   ),
 }));
 
-const setup = ({ isAdmin }: { isAdmin: boolean }) => {
+interface SetupOpts {
+  isAdmin: boolean;
+}
+
+const setup = ({ isAdmin }: SetupOpts) => {
   const onChange = jest.fn<void, [string]>();
   renderWithProviders(
     <ChartSettingGraphCode value="<p>old</p>" onChange={onChange} />,

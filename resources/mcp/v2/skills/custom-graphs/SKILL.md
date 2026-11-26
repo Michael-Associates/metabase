@@ -28,7 +28,9 @@ Save it with question_write, passing the `query_handle` that execute_query or ex
  "visualization_settings": {"ma_graph.html": "<!doctype html><html>...</html>"}}
 ```
 
-To change only the page, update the card with the new `visualization_settings`. To put it on a dashboard, use dashboard_write's `add_card`; a custom graph starts full width (24 by 12).
+A write's response leaves the page out of `visualization_settings` and reports its length as `graph_code_characters`, so a save doesn't echo the whole page back. To change the page, update the card with `visualization_settings` that include the new `ma_graph.html`; to change other settings, send them without it and the saved page is kept. Read the page back with get_content when you need to edit it.
+
+To put the graph on a dashboard, use dashboard_write's `add_card`; a custom graph starts full width (24 by 12). Graph code lives on the card only: a dashboard card never carries its own.
 
 ## Step 3: the page
 
@@ -51,7 +53,8 @@ Your page gets a global `metabase` object. Register a draw function with `metaba
     svg.replaceChildren();
     svg.setAttribute("viewBox", "0 0 " + context.width + " " + context.height);
     data.records.forEach(function (record) {
-      // draw from record.<column name>
+      // draw from record.<column name>, building elements with
+      // document.createElementNS and text with textContent
     });
   });
 </script>
@@ -86,7 +89,8 @@ The page runs in a sealed frame with its own origin. It cannot:
 
 - load anything from the network: no CDN scripts, web fonts, remote images or `fetch`. Inline every script and style; images and fonts work as `data:` URLs. Use the system font stack.
 - reach Metabase: no session, no API calls, no access to the app around it.
-- use `localStorage`, cookies, `alert`, popups or form submission.
+- use `localStorage`, cookies, `alert`, popups, form submission or WebRTC.
+- **turn text into HTML or code.** The frame enforces Trusted Types: `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`, `srcdoc`, `eval`, `new Function` and string timers all throw. Build every element with `document.createElement` / `createElementNS`, put text in with `textContent`, and set attributes with `setAttribute`. This is what keeps a value in the data (a lead's name, a message body) from ever running as script, so never work around it. Browsers without Trusted Types don't enforce it, so the rule holds whatever the browser.
 
 Everything the graph needs comes from the question's results. To show other numbers (totals, comparisons), add them to the query.
 

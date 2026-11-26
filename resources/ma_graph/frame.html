@@ -14,13 +14,38 @@
 // a small runtime that gives the graph `window.metabase` and carries later updates over the port: new results when a
 // filter changes, a new size, a new color scheme. Only the first render message is used, and only from the page that
 // framed this one.
+//
+// The page's Content-Security-Policy requires Trusted Types with a single policy, "ma-graph", which this script
+// creates to write the graph. The graph can't create another, so it can't turn text into HTML or code: no innerHTML,
+// insertAdjacentHTML, document.write, srcdoc, eval or string timers. Text from the data can only ever be text.
 (function () {
   var host = window.parent;
   var rendered = false;
+  var policy = window.trustedTypes
+    ? window.trustedTypes.createPolicy("ma-graph", {
+        createHTML: function (html) {
+          return html;
+        },
+      })
+    : null;
 
   // Runs inside the graph's page, before the graph's own scripts. Written out with toString, so it must not refer to
   // anything outside itself.
   function runtime() {
+    // No peer-to-peer connections and no DNS prefetching: neither is covered by the page's connect-src, and a graph
+    // has no use for them.
+    ["RTCPeerConnection", "webkitRTCPeerConnection", "RTCDataChannel"].forEach(function (name) {
+      try {
+        Object.defineProperty(window, name, { value: undefined, writable: false, configurable: false });
+      } catch (error) {
+        // Already locked.
+      }
+    });
+    var noPrefetch = document.createElement("meta");
+    noPrefetch.httpEquiv = "x-dns-prefetch-control";
+    noPrefetch.content = "off";
+    document.head.appendChild(noPrefetch);
+
     var bridge = window.__maGraph;
     delete window.__maGraph;
     var port = bridge.port;
@@ -118,7 +143,7 @@
       ? doctype[0] + runtimeTag + html.slice(doctype[0].length)
       : "<!doctype html>" + runtimeTag + html;
     document.open();
-    document.write(page);
+    document.write(policy ? policy.createHTML(page) : page);
     document.close();
   }
 
@@ -139,7 +164,17 @@
     render(message.html, message.data, message.context, event.ports[0]);
   });
 
-  host.postMessage({ type: "ma-graph:ready" }, "*");
+  // Say "ready" until the card answers, so a card that starts listening a moment late still hears it. Ten seconds is
+  // more than a card ever takes.
+  var attempts = 0;
+  (function announce() {
+    if (rendered || attempts >= 100) {
+      return;
+    }
+    attempts += 1;
+    host.postMessage({ type: "ma-graph:ready" }, "*");
+    setTimeout(announce, 100);
+  })();
 })();
 </script>
 </body>

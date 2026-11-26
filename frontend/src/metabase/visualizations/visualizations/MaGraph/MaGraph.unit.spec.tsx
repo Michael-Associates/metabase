@@ -3,6 +3,7 @@ import { ThemeProvider } from "metabase/ui";
 import { registerVisualizations } from "metabase/visualizations/register";
 import type { VisualizationProps } from "metabase/visualizations/types";
 import { getComputedSettingsForSeries } from "metabase/viz-core";
+import type { RowValues } from "metabase-types/api";
 import {
   createMockCard,
   createMockColumn,
@@ -22,6 +23,10 @@ jest.mock("@mantine/hooks", () => ({
 }));
 
 const GRAPH_HTML = "<!doctype html><svg id='chart'></svg>";
+const ROWS: RowValues[] = [
+  ["Google", 12],
+  ["Twitter", 7],
+];
 
 class FakePort {
   onmessage: ((event: { data: unknown }) => void) | null = null;
@@ -39,10 +44,18 @@ class FakeMessageChannel {
   }
 }
 
-const setup = () => {
+interface GraphOpts {
+  html?: string;
+  rows?: RowValues[];
+}
+
+const getProps = ({
+  html = GRAPH_HTML,
+  rows = ROWS,
+}: GraphOpts = {}): VisualizationProps => {
   const card = createMockCard({
     display: "ma_graph",
-    visualization_settings: { "ma_graph.html": GRAPH_HTML },
+    visualization_settings: { "ma_graph.html": html },
   });
   const series = createMockSingleSeries(
     card,
@@ -52,14 +65,11 @@ const setup = () => {
           createMockColumn({ name: "SOURCE", display_name: "Source" }),
           createMockNumericColumn({ name: "count", display_name: "Count" }),
         ],
-        rows: [
-          ["Google", 12],
-          ["Twitter", 7],
-        ],
+        rows,
       }),
     }),
   );
-  const props: VisualizationProps = {
+  return {
     series: [series],
     rawSeries: [series],
     data: series.data,
@@ -89,18 +99,23 @@ const setup = () => {
     onUpdateVisualizationSettings: () => undefined,
     dispatch: jest.fn<unknown, [unknown]>(),
   };
+};
 
-  renderWithProviders(
-    <ThemeProvider>
-      <MaGraph {...props} />
-    </ThemeProvider>,
-  );
-
+const getFrame = () => {
   const frame = screen.getByTestId("ma-graph-frame");
   if (!(frame instanceof HTMLIFrameElement) || frame.contentWindow == null) {
     throw new Error("Expected the graph's frame to have a window");
   }
-  const frameWindow = frame.contentWindow;
+  return { frame, frameWindow: frame.contentWindow };
+};
+
+const setup = (opts: GraphOpts = {}) => {
+  const { rerender, unmount } = renderWithProviders(
+    <ThemeProvider>
+      <MaGraph {...getProps(opts)} />
+    </ThemeProvider>,
+  );
+  const { frame, frameWindow } = getFrame();
   const postMessage = jest
     .spyOn(frameWindow, "postMessage")
     .mockImplementation(() => undefined);
@@ -110,8 +125,15 @@ const setup = () => {
       window.dispatchEvent(new MessageEvent("message", { data, source }));
     });
   };
+  const rerenderWith = (nextOpts: GraphOpts) => {
+    rerender(
+      <ThemeProvider>
+        <MaGraph {...getProps(nextOpts)} />
+      </ThemeProvider>,
+    );
+  };
 
-  return { frame, postMessage, sendFromFrame };
+  return { frame, postMessage, sendFromFrame, rerenderWith, unmount };
 };
 
 describe("MaGraph", () => {
@@ -161,16 +183,14 @@ describe("MaGraph", () => {
             expect.objectContaining({ name: "SOURCE", displayName: "Source" }),
             expect.objectContaining({ name: "count", displayName: "Count" }),
           ],
-          rows: [
-            ["Google", 12],
-            ["Twitter", 7],
-          ],
+          rows: ROWS,
         },
         context: { width: 800, height: 400, colorScheme: "light" },
       },
       "*",
       [channel.port2],
     );
+    expect(channel.port1.postMessage).not.toHaveBeenCalled();
   });
 
   it("answers only its own frame, and only once", () => {
@@ -182,6 +202,37 @@ describe("MaGraph", () => {
     sendFromFrame({ type: "ma-graph:ready" });
     sendFromFrame({ type: "ma-graph:ready" });
     expect(postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends new results over the private port", () => {
+    const { sendFromFrame, rerenderWith } = setup();
+    sendFromFrame({ type: "ma-graph:ready" });
+
+    rerenderWith({ rows: [["Organic", 3]] });
+
+    const [channel] = FakeMessageChannel.channels;
+    expect(channel.port1.postMessage).toHaveBeenCalledWith({
+      type: "update",
+      data: expect.objectContaining({ rows: [["Organic", 3]] }),
+    });
+  });
+
+  it("closes the port when the card goes away", () => {
+    const { sendFromFrame, unmount } = setup();
+    sendFromFrame({ type: "ma-graph:ready" });
+
+    unmount();
+
+    const [channel] = FakeMessageChannel.channels;
+    expect(channel.port1.close).toHaveBeenCalled();
+  });
+
+  it("starts a fresh frame when the graph's code changes", () => {
+    const { frame, rerenderWith } = setup();
+
+    rerenderWith({ html: "<!doctype html><p>new graph</p>" });
+
+    expect(getFrame().frame).not.toBe(frame);
   });
 
   it("shows the graph's own error in the card", () => {

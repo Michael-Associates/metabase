@@ -13,7 +13,11 @@
       (testing "it carries exactly its own sealed policy (pinned: a change must break this test)"
         (is (= (str "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; "
                     "style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; "
-                    "form-action 'none'; base-uri 'none'; frame-ancestors *")
+                    "form-action 'none'; base-uri 'none'; webrtc 'block'; "
+                    "require-trusted-types-for 'script'; trusted-types ma-graph; frame-ancestors *")
                (get headers "Content-Security-Policy"))))
+      (testing "it writes the graph through its one Trusted Types policy"
+        (is (str/includes? body "createPolicy(\"ma-graph\""))
+        (is (str/includes? body "policy.createHTML(page)")))
       (testing "frame-ancestors replaces X-Frame-Options, so public and embedded dashboards can frame it"
         (is (nil? (get headers "X-Frame-Options")))))))

@@ -14,12 +14,18 @@
   background: transparent;
 }
 
+/* A bar along the bottom, so a failing tooltip or handler doesn't hide a
+   graph that otherwise draws. */
 .error {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 40%;
   overflow: auto;
-  padding: 1rem;
+  padding: 0.5rem 0.75rem;
   background: var(--mb-color-background-primary);
+  border-top: 1px solid var(--mb-color-border);
 }
 
 .editor {

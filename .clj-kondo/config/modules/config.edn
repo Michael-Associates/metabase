@@ -783,6 +783,7 @@
            lib
            lib.be
            lib.schema
+           ma-graph
            models
            parameters
            parameters.schema
@@ -1374,6 +1375,14 @@
            util.classloader
            util.config}}
 
+  ;; Michael and Associates fork: custom graphs.
+  ma-graph
+  {:team "Michael and Associates"
+   :api  #{metabase.ma-graph.api
+           metabase.ma-graph.core}
+   :uses #{api
+           util}}
+
   mcp
   {:team "Metabot"
    :module-exports #{mcp.oauth-server}
@@ -1402,6 +1411,7 @@
            lib.be
            lib.metadata
            lib.schema
+           ma-graph
            mcp.oauth-server
            metabot
            metabot.agent-api
@@ -2163,6 +2173,7 @@
            lib.metadata
            lib.metric
            lib.schema
+           ma-graph
            metrics
            models
            parameters
