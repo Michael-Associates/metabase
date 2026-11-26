@@ -120,8 +120,12 @@ jobs:
       - name: Check the custom graph page is sealed
         run: |
           set -euo pipefail
-          headers=$(curl -s -D - -o /dev/null 'http://localhost:3000/api/ma-graph/frame')
-          grep -qi "^content-security-policy: sandbox allow-scripts; default-src 'none';" <<< "$headers"
+          headers=$(curl -sS --fail-with-body -D - -o /dev/null 'http://localhost:3000/api/ma-graph/frame')
+          fail() { echo "::error::$1"; echo "$headers"; exit 1; }
+          [ "$(grep -ci '^content-security-policy:' <<< "$headers")" = 1 ] || fail "Expected exactly one Content-Security-Policy header."
+          grep -qi "^content-security-policy: sandbox allow-scripts; default-src 'none';" <<< "$headers" || fail "The page's policy is not the sealed one."
+          grep -qi "require-trusted-types-for 'script'; trusted-types ma-graph;" <<< "$headers" || fail "The page's policy doesn't require Trusted Types."
+          ! grep -qi '^x-frame-options:' <<< "$headers" || fail "X-Frame-Options would keep public and embedded dashboards from framing the page."
       - name: Record the checksum and version
         working-directory: ./target/uberjar
         run: |

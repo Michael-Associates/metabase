@@ -93,11 +93,16 @@ know our charts.
 
 ## Rolling back
 
-Our changes are frontend only, so every build of the same Metabase version
-uses the same application database. To roll back, point `ma/deploy/Dockerfile`
-at an earlier release, or use Railway's rollback on the previous deployment.
-Going back to Metabase's official image also works: Heatmap and Flow cards
-then show as tables.
+None of our changes touch the application database's schema, so every build of
+the same Metabase version uses the same application database. To roll back,
+point `ma/deploy/Dockerfile` at an earlier release, or use Railway's rollback
+on the previous deployment.
+
+Going back to Metabase's official image also works: Heatmap, Flow and custom
+graph cards then show as tables. While it runs, though, nothing stops a
+non-admin from saving custom graph code through the API, and that code would
+run once the fork is back. After such a stretch, check custom graph cards'
+code before rolling forward.
 
 ## Upgrading to a new Metabase version
 

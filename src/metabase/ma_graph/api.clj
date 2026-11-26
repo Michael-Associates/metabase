@@ -55,8 +55,9 @@
              "X-Frame-Options"         nil
              "X-Content-Type-Options"  "nosniff"
              "Referrer-Policy"         "no-referrer"
-             ;; private: the middleware may add cookies to the response.
-             "Cache-Control"           "private, max-age=300"}
+             ;; no-cache: the page is tiny, and a browser must never keep an old page, whose messages may no longer
+             ;; match the card's, after a deploy. Private either way, since the middleware may add cookies.
+             "Cache-Control"           "private, no-cache"}
    :body    @frame-html})
 
 (def ^{:arglists '([request respond raise])} routes
