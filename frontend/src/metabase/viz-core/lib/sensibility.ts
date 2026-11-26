@@ -202,6 +202,9 @@ function getRecommendedVisualizations(
   } else if (hasGeo) {
     recommended.push("table", "pivot", "scatter");
   }
+  if (sensible.includes("ma_heatmap") && nonLatLongDimensionCount >= 2) {
+    recommended.push("ma_heatmap");
+  }
   if (sensible.includes("sankey")) {
     // the sankey sensibility check is quite robust, so we recommend it whenever it's sensible
     recommended.push("sankey");

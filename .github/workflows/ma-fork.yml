@@ -1,0 +1,150 @@
+name: Michael and Associates fork
+
+# Checks and builds every pull request into ma-main. Every merge into ma-main
+# is also published as an open-source Metabase uberjar GitHub release, which
+# ma/deploy/Dockerfile pins for Railway.
+
+on:
+  pull_request:
+    branches: [ma-main]
+  push:
+    branches: [ma-main]
+    paths-ignore:
+      - "ma/deploy/**"
+      - "ma/README.md"
+  workflow_dispatch:
+
+concurrency:
+  group: ma-fork-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  MA_BASE_VERSION: v0.65.3.7
+
+jobs:
+  checks:
+    name: Lint, type-check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare front-end environment
+        uses: ./.github/actions/prepare-frontend
+      - name: Prepare back-end environment
+        uses: ./.github/actions/prepare-backend
+      - name: Compile CLJS
+        run: bun run build-pure:cljs
+      - name: Check formatting
+        run: bun run lint-format-pure
+      - name: Lint
+        run: bun run lint-oxlint
+      - name: Check types
+        run: bun run type-check-pure
+      - name: Run visualization unit tests
+        run: >-
+          bun run test-unit-keep-cljs --silent
+          --testPathPatterns
+          "frontend/src/metabase/visualizations/"
+          "frontend/src/metabase/viz-core/"
+          "frontend/src/metabase/embedding/mcp/"
+
+  uberjar:
+    name: Build the uberjar
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MB_EDITION: oss
+      INTERACTIVE: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Name this build
+        run: echo "MA_VERSION=${MA_BASE_VERSION}-ma.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+      # The version name decides which application-database migrations a
+      # Metabase believes it has run, so it must match the migrations we ship.
+      - name: Check the migrations are Metabase ${{ env.MA_BASE_VERSION }}'s
+        run: |
+          git fetch --quiet --depth=1 --no-tags https://github.com/metabase/metabase "refs/tags/${MA_BASE_VERSION}"
+          if ! git diff --quiet FETCH_HEAD HEAD -- resources/migrations; then
+            echo "::error::The migrations differ from Metabase ${MA_BASE_VERSION}. Update MA_BASE_VERSION."
+            exit 1
+          fi
+      - name: Make room on the runner
+        uses: ./.github/actions/maximize-disk-space
+      - name: Prepare front-end environment
+        uses: ./.github/actions/prepare-frontend
+      - name: Prepare back-end environment
+        uses: ./.github/actions/prepare-backend
+      - name: Build
+        run: ./bin/build.sh :version "\"${MA_VERSION}\""
+      - name: Check the uberjar has the license notices and no enterprise code
+        run: |
+          set -euo pipefail
+          contents=$(unzip -l ./target/uberjar/metabase.jar)
+          grep -q "license-backend-third-party.txt" <<< "$contents"
+          grep -q "license-frontend-third-party.txt" <<< "$contents"
+          if grep -q "metabase_enterprise/" <<< "$contents"; then
+            echo "::error::The uberjar contains enterprise code."
+            exit 1
+          fi
+      - name: Launch the uberjar
+        run: java --add-opens java.base/java.nio=ALL-UNNAMED -jar ./target/uberjar/metabase.jar &
+      - name: Wait for Metabase to start
+        timeout-minutes: 5
+        run: while ! curl -s 'http://localhost:3000/api/health' | grep '{"status":"ok"}'; do sleep 1; done
+      - name: Check the version it reports
+        run: curl -s 'http://localhost:3000/api/session/properties' | grep -F "\"tag\":\"${MA_VERSION}\""
+      - name: Record the checksum and version
+        working-directory: ./target/uberjar
+        run: |
+          sha256sum metabase.jar > SHA256.sum
+          echo "MA_VERSION=${MA_VERSION}" > VERSION.env
+      - name: Keep the uberjar for publishing
+        uses: actions/upload-artifact@v7
+        with:
+          name: ma-uberjar
+          retention-days: 7
+          path: |
+            ./target/uberjar/metabase.jar
+            ./target/uberjar/SHA256.sum
+            ./target/uberjar/VERSION.env
+
+  # Kept apart from the build so that the token able to publish never runs
+  # the build's third-party dependencies.
+  publish:
+    name: Publish the release
+    needs: uberjar
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/ma-main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch the uberjar
+        uses: actions/download-artifact@v8
+        with:
+          name: ma-uberjar
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source ./VERSION.env
+          sha256sum -c SHA256.sum
+          sha256=$(cut -d ' ' -f 1 SHA256.sum)
+          gh release create "${MA_VERSION}" ./metabase.jar ./SHA256.sum \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${MA_VERSION}" \
+            --draft \
+            --notes "Open-source Metabase ${MA_BASE_VERSION} with the Michael and Associates charts, built from ${GITHUB_SHA}.
+
+          SHA-256 of metabase.jar: \`${sha256}\`"
+          gh release edit "${MA_VERSION}" --repo "${GITHUB_REPOSITORY}" --draft=false
