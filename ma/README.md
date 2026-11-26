@@ -5,6 +5,10 @@ change lives on the `ma-main` branch, which started from Metabase's `v0.65.3.7`
 release. Metabase's code is otherwise untouched; their releases live in
 [metabase/metabase](https://github.com/metabase/metabase).
 
+It's an experiment. It runs only in its own Railway project, "Metabase Fork
+Sandbox", against Metabase's Sample Database. Our real Metabase, production and
+staging, runs Metabase's official image and never this fork.
+
 ## What we changed
 
 - `frontend/src/metabase/visualizations/visualizations/MaHeatmap/`: the
@@ -25,15 +29,16 @@ runs here. They would otherwise fire on our pull requests and releases.
 Heatmap cards show as tables in emailed subscriptions, Slack alerts and PDF
 exports: Metabase draws those on the server, which doesn't know our chart.
 
-## How a change reaches staging
+## How a change reaches the sandbox
 
 1. Open a pull request into `ma-main`. The workflow lints, type-checks, runs
    the visualization tests and builds the uberjar.
 2. Merge it. The workflow builds the uberjar again and publishes it as a GitHub
    release named like `v0.65.3.7-ma.12`, with its SHA-256 in the notes.
 3. Open a second pull request that points `ma/deploy/Dockerfile` at that release
-   and its SHA-256, and merge it. Railway's `metabase-staging` service watches
-   `ma/deploy/` on `ma-main` and redeploys.
+   and its SHA-256, and merge it. The `metabase-fork` service in the Metabase
+   Fork Sandbox Railway project watches `ma/deploy/` on `ma-main` and
+   redeploys.
 
 ## Rolling back
 
