@@ -93,7 +93,7 @@ know our charts.
    `v0.65.3.7-ma.12`, with its SHA-256 in the notes. When the merged code is
    exactly the code the pull request built (same source tree), it publishes
    that very build; otherwise (the branch was behind `ma-main`, or the build
-   expired after 7 days) it builds again first.
+   expired, since builds are kept one day) it builds again first.
 4. Open a pull request that points `ma/deploy/Dockerfile` at that release and
    its SHA-256, and merge it. Its checks skip the build, since the release was
    already built and checked. The `metabase-fork` service in the Metabase Fork

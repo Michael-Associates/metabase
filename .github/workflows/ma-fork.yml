@@ -123,6 +123,21 @@ jobs:
         uses: ./.github/actions/prepare-frontend
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
+      - name: Fetch the Java libraries
+        run: bash ma/scripts/fetch-java-libraries.sh
+      # prepare-backend only restores this cache; Metabase saved it from a
+      # workflow this fork doesn't have, so every job downloaded every library.
+      # Saving it here spares Maven Central the uberjar job's downloads and
+      # later runs'. It is saved under the same paths and key it is restored
+      # with, from the one script that defines both.
+      - name: Name the Java library cache
+        id: cache-spec
+        run: .github/scripts/cache-keys.sh >> "$GITHUB_OUTPUT"
+      - name: Keep the Java libraries for later jobs
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.cache-spec.outputs.m2-path }}
+          key: ${{ steps.cache-spec.outputs.m2-key }}
       - name: Compile CLJS
         run: bun run build-pure:cljs
       - name: Check formatting
@@ -182,6 +197,8 @@ jobs:
         uses: ./.github/actions/prepare-frontend
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
+      - name: Fetch the Java libraries
+        run: bash ma/scripts/fetch-java-libraries.sh
       - name: Build
         run: ./bin/build.sh :version "\"${MA_VERSION}\""
       - name: Check the uberjar has the license notices and no enterprise code
@@ -213,7 +230,9 @@ jobs:
           grep -qi "require-trusted-types-for 'script'; trusted-types ma-graph;" <<< "$headers" || fail "The page's policy doesn't require Trusted Types."
           ! grep -qi '^x-frame-options:' <<< "$headers" || fail "X-Frame-Options would keep public and embedded dashboards from framing the page."
       # MA_TREE is the source tree this build came from. A merge whose tree is
-      # the same publishes this build instead of building again.
+      # the same publishes this build instead of building again. Builds are
+      # 624 MB, so they are kept a day: merge within a day of the last push,
+      # or the merge builds again.
       - name: Record the checksum, version and source tree
         working-directory: ./target/uberjar
         run: |
@@ -227,7 +246,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ma-uberjar
-          retention-days: 7
+          retention-days: 1
           path: |
             ./target/uberjar/metabase.jar
             ./target/uberjar/SHA256.sum
@@ -236,7 +255,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ma-build-info
-          retention-days: 7
+          retention-days: 1
           path: ./target/uberjar/VERSION.env
 
   # Kept apart from the build so that the token able to publish never runs
