@@ -106,7 +106,10 @@
   :export?    true
   :type       :json
   :feature    :whitelabel
-  :default    {}
+  ;; Michael and Associates fork: the firm's red (from its logo) is the brand color. Without the whitelabel feature
+  ;; this setting can't be changed and reads as its default, so every reader of it uses the red: the app's theme,
+  ;; which derives every shade from it, chart images in subscriptions, and x-rays.
+  :default    {:brand "#c6072b"}
   :audit      :getter
   :doc "To change the user interface colors:
 

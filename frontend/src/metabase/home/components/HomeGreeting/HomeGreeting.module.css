@@ -1,25 +1,14 @@
-.greetingLogoContainer {
-  position: relative;
-  width: 4rem;
-  height: 2.5rem;
+/* Michael and Associates fork: the firm's icon is a rounded tile drawn on a white square; the rounding clips the
+   white corners so only the tile shows on the home background. */
+.greetingIcon {
+  width: 2.75rem;
+  height: 2.75rem;
   margin-inline-end: 0.5rem;
+  border-radius: 22%;
+  object-fit: cover;
 
   @media (--breakpoint-min-xl) {
-    width: 4rem;
-    height: 3rem;
-  }
-}
-
-.greetingLogo {
-  width: 100%;
-  position: absolute;
-  top: 0;
-
-  &.isCool {
-    opacity: 1;
-  }
-
-  &.isNotCool {
-    opacity: 0;
+    width: 3.25rem;
+    height: 3.25rem;
   }
 }

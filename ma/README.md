@@ -67,6 +67,19 @@ staging, runs Metabase's official image and never this fork.
     (`resources/frontend_client/app/assets/img/ma-home-background.jpg`) in
     place of Metabase's lighthouse lines; `HomeLayout.tsx` uses it and keeps
     the greeting above it. The login page keeps the lighthouse.
+  - `home/components/HomeGreeting/`: the firm's icon (scales of justice with a
+    chart, `resources/frontend_client/app/assets/img/ma-home-icon.png`) in
+    place of Metabot's faces, next to the welcome line and on the setup guide
+    home page.
+  - The brand color is the firm's red, `#c6072b`: it is the default of the
+    `application-colors` setting in `appearance/settings.clj`, and
+    `ui/colors/colors.ts` reads that setting without the paid whitelabel
+    feature. Metabase derives every shade, hover and dark-mode color from it.
+  - The left menu (`nav/containers/MainNavbar/MainNavbar.styled.tsx`) and the
+    top bar (`nav/components/AppBar/AppBarLarge.tsx`, `AppBarSmall.tsx`) are
+    the grey of the home background, `--ma-color-chrome: #e4e2e7`, defined in
+    `styled-components/containers/GlobalStyles/GlobalStyles.tsx`. Dark mode
+    keeps Metabase's page color.
   - `nav/components/AboutModal/AboutModal.tsx`: says this is our build of
     Metabase and links to this repository, as the AGPL asks of a modified
     version. Metabase's trademark line stays.

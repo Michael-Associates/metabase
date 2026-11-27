@@ -83,7 +83,11 @@ export const AppBarLarge = ({
       h={APP_BAR_HEIGHT}
       pl="1.325rem"
       pr="lg"
-      bg="background_page-primary"
+      // Michael and Associates fork: the firm's grey (GlobalStyles), Metabase's page color where it isn't set.
+      style={{
+        backgroundColor:
+          "var(--ma-color-chrome, var(--mb-color-background_page-primary))",
+      }}
     >
       <Flex align="center" miw="5rem" flex="1 1 auto">
         <AppBarToggle

@@ -8,10 +8,9 @@ import type { MetabaseColorKey } from "./types/color-keys";
 
 // Unjustified type cast. FIXME
 const win = typeof window !== "undefined" ? window : ({} as Window);
-const tokenFeatures = win.MetabaseBootstrap?.["token-features"] ?? {};
-const shouldWhitelabel = !!tokenFeatures["whitelabel"];
-const whitelabelColors =
-  (shouldWhitelabel && win.MetabaseBootstrap?.["application-colors"]) || {};
+// Michael and Associates fork: the instance's application colors apply without the paid whitelabel feature, as
+// they already do in the theme (AppThemeProvider, GlobalStyles). Their default is the firm's red brand.
+const whitelabelColors = win.MetabaseBootstrap?.["application-colors"] || {};
 
 const baseColors = getBaseColorsForThemeDefinitionOnly();
 

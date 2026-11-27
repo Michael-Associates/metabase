@@ -34,10 +34,17 @@ export const GlobalStyles = (): JSX.Element => {
   }, [theme, whitelabelColors]);
 
   const styles = useMemo(() => {
+    // eslint-disable-next-line metabase/no-color-literals -- Michael and Associates fork: --ma-color-chrome is the grey of the firm's home background image, which has no palette entry.
     return css`
       ${cssVariables}
       :root {
         --mb-default-font-family: ${getFontFamilyValue(font)};
+        /* Michael and Associates fork: the grey of the firm's home background, for the left menu and the top bar.
+           Dark mode keeps the page color. */
+        --ma-color-chrome: #e4e2e7;
+      }
+      [data-mantine-color-scheme="dark"] {
+        --ma-color-chrome: var(--mb-color-background_page-primary);
       }
 
       ${defaultFontFiles({ baseUrl: sitePath })}
