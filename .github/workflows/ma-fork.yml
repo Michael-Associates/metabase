@@ -21,8 +21,11 @@ on:
       - "ma/README.md"
   workflow_dispatch:
 
+# "lane-2": run #26 has been stuck queued in the first lane since GitHub paused
+# this fork's workflows on 2026-11-26, and no cancel or delete reaches it. A new
+# lane keeps later releases from waiting behind it.
 concurrency:
-  group: ma-fork-${{ github.event.pull_request.number || github.ref }}
+  group: ma-fork-lane-2-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
