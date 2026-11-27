@@ -79,9 +79,17 @@ Rules for the draw function:
 
 - **Redraw from scratch** each call: clear what you drew, then draw again. It runs on every filter change and resize.
 - **Fit the card.** Size to `context.width` and `context.height`, or draw in a fixed `viewBox` that scales. Nothing should depend on the page scrolling. If the content is taller than a card can be, let the page scroll inside the card.
+- **Measure after you fill.** Add everything that takes height (summary tiles, a legend, an intro line) before you read the chart area's size. Measured first, the chart is drawn for room it doesn't get and shrinks into the middle of the card.
+- **Say when nothing matches.** A filter can leave no rows, or zero in a total you divide by; draw a short message ("No orders match these filters.") instead of an empty or broken chart.
 - **Errors show in the card.** An uncaught error, in the draw function or anywhere in the page, replaces the graph with its message, so check your data before you rely on it.
 
 `metabase.data` and `metabase.context` hold the latest values if you need them outside the draw function.
+
+## Dashboard filters
+
+Filters reach a custom graph through its query, as for any question: Metabase fills them in, runs the query and redraws the page with the new rows. Write a native query with field filters (learn("native-parameters")): `WHERE {{category}}` bound to the column, with the real table name, never an alias. Then wire each dashboard filter to the card with dashboard_write's `wire_parameter` and `target_tag`.
+
+The page sees only the filtered rows, never the filter values. If the graph must say what is selected, return it from the query as a column. When a graph picks its own time span (this year against last year, cohorts), don't wire the Date filter to it, and say so in its intro line.
 
 ## Sandbox rules
 
@@ -105,7 +113,8 @@ These graphs should look like the firm's HTML reports, not like default charts.
 - **Labels say what they mean:** plain-English headings ("How the lead came in", not `lead_type`), full numbers with separators (`7,499`), and a share with its base (`31.7% of leads`, `74.3% of scheduled consults`). Never a bare percentage.
 - **Sankeys and flows:** 12px nodes with a 2px radius, generous gaps (about 30px), bands at 0.5 opacity with a 1px separator in the surface color, colored by the source category. Labels left of the first step and right of the others, with a 4px halo in the surface color. On hover, fade other bands to 0.18 and raise the hovered one to 0.85.
 - **Tooltips:** a surface-colored box with a hairline border, 10px radius and a soft shadow; the number first and big (18px, weight 650), then what it is, then its shares.
-- **Around the chart:** when the card is a report, start with a title, one or two sentences on how to read it, and a row of summary tiles (name, big value, a muted note), as the firm's HTML reports do.
+- **Around the chart:** when the card is a report, start with one or two sentences on how to read it and a row of summary tiles (name, big value, a muted note), as the firm's HTML reports do. Metabase already prints the card's name above the graph, so don't repeat it as a title.
+- **Labels fit their space:** a label between two columns of a flow gets the gap between them, about 150px on a full-width card; shorten the words (`47.8% of buyers`) rather than let labels run into each other.
 
 ## To confirm
 
