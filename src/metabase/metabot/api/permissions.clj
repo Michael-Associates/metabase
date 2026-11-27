@@ -4,7 +4,8 @@
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
    [metabase.api.routes.common :refer [+auth]]
-   [metabase.metabot.scope :as scope]))
+   [metabase.metabot.scope :as scope]
+   [metabase.metabot.settings :as metabot.settings]))
 
 (defn- simplify-permissions
   "Strip the namespace from permission keywords for a flatter JSON response.
@@ -26,9 +27,14 @@
   permissive value across all their groups."
   []
   {:permissions (simplify-permissions
-                 (if api/*is-superuser?*
-                   scope/all-yes-permissions
-                   (scope/resolve-user-permissions api/*current-user-id*)))})
+                 (cond-> (if api/*is-superuser?*
+                           scope/all-yes-permissions
+                           (scope/resolve-user-permissions api/*current-user-id*))
+                   ;; Michael and Associates fork: the SQL editor's helpers (fix this SQL, write SQL for me, suggested
+                   ;; rewrites) run on Metabot's own agent, and Claude Brain answers this fork's chat instead, so with
+                   ;; Claude Brain they are off for everyone, admins too, until Claude Brain writes SQL in the editor.
+                   (metabot.settings/claude-brain-configured?)
+                   (assoc :permission/metabot-sql-generation :no)))})
 
 (def ^{:arglists '([request respond raise])} routes
   "`/api/metabot/permissions` routes."

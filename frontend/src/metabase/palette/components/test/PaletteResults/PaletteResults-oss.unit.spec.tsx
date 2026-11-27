@@ -301,14 +301,16 @@ describe("PaletteResults", () => {
     expect(screen.queryByText("New action")).not.toBeInTheDocument();
   });
 
-  it("should start a new research", async () => {
-    const { router } = setup({ query: "new research" });
+  // Michael and Associates fork: explorations are off, since they run on Metabot's own agent and Claude Brain answers
+  // this fork's chat instead.
+  it("should not offer the New research action, even with NLQ access", async () => {
+    setup({ query: "new research" });
 
-    await userEvent.click(await screen.findByText("New research"));
-
-    await waitFor(() =>
-      expect(router?.location.pathname).toBe("/question/research"),
-    );
+    expect(
+      await screen.findByText(`Search Metabase's docs for "new research"`),
+    ).toBeInTheDocument();
+    await act(() => fetchMock.callHistory.flush(true));
+    expect(screen.queryByText("New research")).not.toBeInTheDocument();
   });
 
   it("should not offer the New research action without NLQ access", async () => {

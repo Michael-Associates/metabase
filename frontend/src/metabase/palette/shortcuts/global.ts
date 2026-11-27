@@ -30,6 +30,8 @@ export const globalShortcuts = {
     },
     shortcut: ["c r"],
     shortcutGroup: "global" as const,
+    // Michael and Associates fork: explorations are off (no "New research" action), so the shortcut isn't listed.
+    hide: true,
   },
   "create-new-dashboard": {
     get name() {

@@ -88,6 +88,35 @@ staging, runs Metabase's official image and never this fork.
   - `nav/components/AboutModal/AboutModal.tsx`: says this is our build of
     Metabase and links to this repository, as the AGPL asks of a modified
     version. Metabase's trademark line stays.
+- Claude Brain: the chat panel (the button at the top right, Ctrl+E) and the
+  full-page Ask chat are answered by Claude's own agent loop instead of
+  Metabot's.
+  - `ma/claude-brain/`: the service. It runs the Claude Agent SDK (Claude
+    Code's loop as a library) with no built-in tools: its only tools are
+    Metabase's MCP tools, as the signed-in person. Each conversation keeps an
+    agent session on the service's volume, so follow-ups resume it. It also
+    writes conversation titles with a small Claude model. Railway builds it
+    from `ma-main` (service `claude-brain`, root `ma/claude-brain`), so CI
+    builds nothing for a change there.
+  - `src/metabase/metabot/claude_brain.clj`: posts each turn to the service,
+    with an MCP access token for the signed-in person that lasts the turn and
+    is revoked when it ends, and streams the service's parts into Metabot's
+    own stream, so saving turns, history and titles work as before.
+    `metabot/api.clj` uses it for the `internal` and `nlq` profiles.
+  - `metabot/settings.clj`: `ma-claude-brain-url` and
+    `ma-claude-brain-secret` (environment only: `MB_MA_CLAUDE_BRAIN_URL`,
+    `MB_MA_CLAUDE_BRAIN_SECRET`); with both set the panel counts as
+    configured. The assistant's name defaults to "Claude Brain" and Metabot's
+    illustrations are off.
+  - `metabot/conversation_title.clj`: titles come from Claude Brain.
+  - `metabot/components/MetabotIcon/`: Claude Brain's icon
+    (`resources/frontend_client/app/assets/img/ma-claude-brain-icon.png`).
+  - Off while Claude Brain answers, since they run on Metabot's own agent:
+    the SQL editor's helpers (`metabot/api/permissions.clj` reports no SQL
+    generation), explorations (the Ask page's Research button in
+    `MetabotAsk/MetabotGreeting.tsx`, the command palette's New research and
+    its shortcut) and writing in documents
+    (`documents/components/Editor/DocumentEditorHost.tsx`).
 - `.github/workflows/ma-fork.yml`: checks and builds every pull request, and
   publishes every merge as a release. It runs the unit tests of every folder
   above, the backend tests of custom graphs, and checks that the built

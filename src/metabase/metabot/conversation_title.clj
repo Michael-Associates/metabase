@@ -2,6 +2,7 @@
   "Generate and persist short titles for Metabot conversations."
   (:require
    [clojure.string :as str]
+   [metabase.metabot.claude-brain :as claude-brain]
    [metabase.metabot.persistence :as metabot.persistence]
    [metabase.metabot.self :as metabot.self]
    [metabase.metabot.settings :as metabot.settings]
@@ -121,19 +122,23 @@
   (when (and conversation-id (not (str/blank? message)) (nil? (current-title conversation-id))
              ;; titles must respect the usage limit too, like metabot.self/call-llm
              (not (metabot.usage/check-usage-limits!)))
-    (let [response (metabot.self/call-llm-structured
-                    (metabot.settings/llm-mini-model)
-                    [{:role "system" :content title-system-prompt}
-                     {:role "user"   :content (str "<session>\n" message "\n</session>")}]
-                    title-json-schema
-                    nil
-                    title-max-tokens
-                    {:request-id  (str (random-uuid))
-                     :session-id  conversation-id
-                     :profile-id  profile-id
-                     :source      "conversation_title"
-                     :tag         "conversation-title"})
-          title    (clean-title (:title response))]
+    (let [title (clean-title
+                 ;; Michael and Associates fork: with Claude Brain, Claude Brain writes the title; there is no Metabot
+                 ;; model to ask.
+                 (if (metabot.settings/claude-brain-configured?)
+                   (claude-brain/title message)
+                   (:title (metabot.self/call-llm-structured
+                            (metabot.settings/llm-mini-model)
+                            [{:role "system" :content title-system-prompt}
+                             {:role "user"   :content (str "<session>\n" message "\n</session>")}]
+                            title-json-schema
+                            nil
+                            title-max-tokens
+                            {:request-id  (str (random-uuid))
+                             :session-id  conversation-id
+                             :profile-id  profile-id
+                             :source      "conversation_title"
+                             :tag         "conversation-title"}))))]
       (when title
         (when (pos? (long (or (metabot.persistence/set-conversation-title-if-missing! conversation-id title)
                               0)))

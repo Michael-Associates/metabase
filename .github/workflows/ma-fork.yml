@@ -18,6 +18,7 @@ on:
     branches: [ma-main]
     paths-ignore:
       - "ma/deploy/**"
+      - "ma/claude-brain/**"
       - "ma/README.md"
   workflow_dispatch:
 
@@ -40,9 +41,10 @@ jobs:
   #
   # - A draft pull request builds nothing; marking it ready for review runs
   #   everything once.
-  # - A pull request that only points the sandbox at a release (ma/deploy/) or
-  #   edits ma/README.md builds nothing: that release was built and checked
-  #   when its code merged.
+  # - A pull request that only points the sandbox at a release (ma/deploy/),
+  #   changes Claude Brain (ma/claude-brain/, which Railway builds from
+  #   ma-main) or edits ma/README.md builds nothing: that release was built
+  #   and checked when its code merged.
   # - A merge into ma-main reuses the uberjar its pull request built, when that
   #   build's source tree is exactly the merged tree, so the release is the
   #   very build that passed. Otherwise (the pull request was behind ma-main,
@@ -76,10 +78,10 @@ jobs:
             fi
             files=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
             echo "$files"
-            if grep -qvE '^(ma/deploy/|ma/README\.md$)' <<< "$files"; then
+            if grep -qvE '^(ma/deploy/|ma/claude-brain/|ma/README\.md$)' <<< "$files"; then
               build true
             else
-              echo "Only ma/deploy/ or ma/README.md changed: nothing to build."
+              echo "Only ma/deploy/, ma/claude-brain/ or ma/README.md changed: nothing to build."
               build false
             fi
             exit 0
@@ -147,7 +149,9 @@ jobs:
       - name: Check types
         run: bun run type-check-pure
       # The tests of every folder our changes touch: the charts and the
-      # Metabase files they register in, then the branding.
+      # Metabase files they register in, the branding, then Claude Brain's
+      # icon and the entry points it hides (the Ask page's Research button,
+      # the command palette's New research).
       - name: Run unit tests for our changes
         run: >-
           bun run test-unit-keep-cljs --silent
@@ -164,6 +168,9 @@ jobs:
           "frontend/src/metabase/ui/colors/"
           "frontend/src/metabase/nav/containers/MainNavbar/"
           "frontend/src/metabase/styled-components/"
+          "frontend/src/metabase/metabot/components/MetabotIcon/"
+          "frontend/src/metabase/metabot/components/MetabotAsk/"
+          "frontend/src/metabase/palette/"
       # The backend of custom graphs: who may save graph code, the sealed page
       # graphs run in, and the MCP learn guides, which include ours.
       - name: Run backend tests for our changes

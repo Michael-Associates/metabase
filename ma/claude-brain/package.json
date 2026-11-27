@@ -1,0 +1,21 @@
+{
+  "name": "claude-brain",
+  "private": true,
+  "description": "Michael and Associates fork: Claude Brain, the service behind Metabase's chat panel. It runs Claude's own agent loop (the Claude Agent SDK) with the signed-in person's Metabase tools.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.332",
+    "@anthropic-ai/sdk": "1.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.7",
+    "typescript": "7.0.2"
+  }
+}
