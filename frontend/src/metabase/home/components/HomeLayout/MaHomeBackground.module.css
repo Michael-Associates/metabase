@@ -1,0 +1,15 @@
+/* Michael and Associates fork: the home page background. Lady Justice stands at the image's right edge, so the
+   image is anchored to the right and bottom and crops from the left on narrow screens. */
+.background {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: right bottom;
+}
+
+/* The image is a light drawing: in dark mode it stays a faint texture, so the page stays dark. */
+[data-mantine-color-scheme="dark"] .background {
+  opacity: 0.12;
+}

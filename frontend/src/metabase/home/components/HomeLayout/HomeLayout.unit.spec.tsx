@@ -10,10 +10,6 @@ import {
 
 import { HomeLayout } from "./HomeLayout";
 
-jest.mock("metabase/common/components/LighthouseIllustration", () => ({
-  LighthouseIllustration: () => <div data-testid="lighthouse-illustration" />,
-}));
-
 const ILLUSTRATION_URL =
   "api/session/illustration/landing-page-illustration-custom?v=0123456789abcdef";
 
@@ -73,10 +69,12 @@ describe("HomeLayout", () => {
       });
     });
 
-    it("should show the lighthouse illustration by default", () => {
+    it("should show the Michael and Associates background by default", () => {
       setup({ landingPageIllustration: "default" });
 
-      expect(screen.getByTestId("lighthouse-illustration")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("ma-home-background").style.backgroundImage,
+      ).toContain("app/assets/img/ma-home-background.jpg");
     });
 
     it("should not show an illustration when it is turned off", () => {
@@ -87,7 +85,7 @@ describe("HomeLayout", () => {
         screen.queryByTestId("landing-page-illustration"),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByTestId("lighthouse-illustration"),
+        screen.queryByTestId("ma-home-background"),
       ).not.toBeInTheDocument();
     });
   });

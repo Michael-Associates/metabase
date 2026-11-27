@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { t } from "ttag";
 
-import { LighthouseIllustration } from "metabase/common/components/LighthouseIllustration";
 import { useHasTokenFeature } from "metabase/common/hooks";
 import visuallyHidden from "metabase/css/core/visually-hidden.module.css";
 import { getUser, getUserIsAdmin } from "metabase/current-user";
@@ -14,6 +13,8 @@ import { Box, Button, Icon, Title, Tooltip } from "metabase/ui";
 import { CustomHomePageModal } from "../CustomHomePageModal";
 import { HomeGreeting } from "../HomeGreeting";
 import { SetupGuideHomePage } from "../SetupGuideHomePage";
+
+import { MaHomeBackground } from "./MaHomeBackground";
 
 interface HomeLayoutProps {
   children?: ReactNode;
@@ -54,7 +55,8 @@ export const HomeLayout = ({ children }: HomeLayoutProps): ReactNode => {
       </Title>
       {landingPageIllustration &&
         (landingPageIllustration.isDefault ? (
-          <LighthouseIllustration />
+          // Michael and Associates fork: the firm's background in place of Metabase's lighthouse.
+          <MaHomeBackground />
         ) : (
           <Box
             data-testid="landing-page-illustration"
@@ -68,7 +70,10 @@ export const HomeLayout = ({ children }: HomeLayoutProps): ReactNode => {
             }}
           />
         ))}
-      <HomeGreeting />
+      {/* Michael and Associates fork: positioned, so the greeting paints above the full-page background. */}
+      <Box pos="relative">
+        <HomeGreeting />
+      </Box>
       {isAdmin && (
         <Tooltip label={t`Pick a dashboard to serve as the homepage`}>
           <Button

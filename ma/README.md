@@ -62,6 +62,11 @@ staging, runs Metabase's official image and never this fork.
     logo.
   - `home/components/HomeGreeting/HomeGreeting.tsx`: "Welcome to the Michael
     and Associates Data Platform" in place of Metabase's random greetings.
+  - `home/components/HomeLayout/`: `MaHomeBackground.tsx` and its stylesheet
+    fill the home page with the firm's Lady Justice background
+    (`resources/frontend_client/app/assets/img/ma-home-background.jpg`) in
+    place of Metabase's lighthouse lines; `HomeLayout.tsx` uses it and keeps
+    the greeting above it. The login page keeps the lighthouse.
   - `nav/components/AboutModal/AboutModal.tsx`: says this is our build of
     Metabase and links to this repository, as the AGPL asks of a modified
     version. Metabase's trademark line stays.
