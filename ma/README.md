@@ -82,21 +82,28 @@ know our charts.
 
 ## How a change reaches the sandbox
 
-1. Open a pull request into `ma-main`. The workflow lints, type-checks, runs
-   the unit tests of our folders and builds the uberjar.
-2. Merge it. The workflow builds the uberjar again and publishes it as a GitHub
-   release named like `v0.65.3.7-ma.12`, with its SHA-256 in the notes.
-3. Open a second pull request that points `ma/deploy/Dockerfile` at that release
-   and its SHA-256, and merge it. Its checks skip the build, since the release
-   was built and checked in step 2. The `metabase-fork` service in the Metabase
-   Fork Sandbox Railway project watches `ma/deploy/` on `ma-main` and
-   redeploys.
+1. Work on a branch and open its pull request into `ma-main` as a draft. A
+   draft runs no CI. Before pushing, run `ma\scripts\check-changes.ps1`, which
+   checks formatting, lint, Clojure brackets and (with enough free memory)
+   types on the changed files.
+2. Mark the pull request ready for review when the work is done. The workflow
+   then lints, type-checks, runs the unit and backend tests of our folders, and
+   builds and starts the uberjar.
+3. Merge it. The workflow publishes a GitHub release named like
+   `v0.65.3.7-ma.12`, with its SHA-256 in the notes. When the merged code is
+   exactly the code the pull request built (same source tree), it publishes
+   that very build; otherwise (the branch was behind `ma-main`, or the build
+   expired after 7 days) it builds again first.
+4. Open a pull request that points `ma/deploy/Dockerfile` at that release and
+   its SHA-256, and merge it. Its checks skip the build, since the release was
+   already built and checked. The `metabase-fork` service in the Metabase Fork
+   Sandbox Railway project watches `ma/deploy/` on `ma-main` and redeploys.
 
 Keep CI runs few. GitHub pauses a fork's workflows when its Actions usage runs
 high ("Workflows are not currently being run on this fork due to the scale of
 GitHub Actions usage"), and a repository admin then has to re-enable them on
-the repository's Actions page. Push a pull request's fixes together rather than
-one at a time: every push runs the full checks and the uberjar build.
+the repository's Actions page. A full run takes about 20 minutes of runners, so
+push a ready pull request's fixes together rather than one at a time.
 
 ## Rolling back
 

@@ -1,12 +1,19 @@
 name: Michael and Associates fork
 
-# Checks and builds every pull request into ma-main. Every merge into ma-main
-# is also published as an open-source Metabase uberjar GitHub release, which
-# ma/deploy/Dockerfile pins for Railway.
+# Checks and builds every pull request into ma-main once it is ready for
+# review. Every merge into ma-main is published as an open-source Metabase
+# uberjar GitHub release, which ma/deploy/Dockerfile pins for Railway.
+#
+# GitHub pauses a fork's workflows when its Actions usage runs high, so this
+# builds as little as it can (see the scope job): draft pull requests and
+# deploy-only pull requests build nothing, and a merge publishes the uberjar
+# its pull request already built and checked when the merged code is exactly
+# that code.
 
 on:
   pull_request:
     branches: [ma-main]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [ma-main]
     paths-ignore:
@@ -25,11 +32,18 @@ env:
   MA_BASE_VERSION: v0.65.3.7
 
 jobs:
-  # A pull request that only points the sandbox at a release (ma/deploy/) or
-  # edits ma/README.md has nothing to build: the release was built and checked
-  # when its code merged. Skipping the build there matters, because GitHub
-  # pauses a fork's workflows when its Actions usage runs high. A skipped
-  # required check counts as passed, so such a pull request can still merge.
+  # Decides whether this run builds, so CI only spends minutes where they buy
+  # something. A skipped required check counts as passed.
+  #
+  # - A draft pull request builds nothing; marking it ready for review runs
+  #   everything once.
+  # - A pull request that only points the sandbox at a release (ma/deploy/) or
+  #   edits ma/README.md builds nothing: that release was built and checked
+  #   when its code merged.
+  # - A merge into ma-main reuses the uberjar its pull request built, when that
+  #   build's source tree is exactly the merged tree, so the release is the
+  #   very build that passed. Otherwise (the pull request was behind ma-main,
+  #   or its build expired) it builds again.
   scope:
     name: Decide what to build
     runs-on: ubuntu-latest
@@ -37,27 +51,60 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
       build: ${{ steps.scope.outputs.build }}
+      reuse_run: ${{ steps.scope.outputs.reuse_run }}
     steps:
       - id: scope
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
+          build() { echo "build=$1" >> "$GITHUB_OUTPUT"; }
+
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            if [ "${PR_DRAFT}" = "true" ]; then
+              echo "Draft pull request: CI runs when it is marked ready for review."
+              build false
+              exit 0
+            fi
+            files=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
+            echo "$files"
+            if grep -qvE '^(ma/deploy/|ma/README\.md$)' <<< "$files"; then
+              build true
+            else
+              echo "Only ma/deploy/ or ma/README.md changed: nothing to build."
+              build false
+            fi
             exit 0
           fi
-          files=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename')
-          echo "$files"
-          if grep -qvE '^(ma/deploy/|ma/README\.md$)' <<< "$files"; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Only ma/deploy/ or ma/README.md changed: nothing to build."
-            echo "build=false" >> "$GITHUB_OUTPUT"
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            tree=$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${GITHUB_SHA}" --jq '.tree.sha')
+            head=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].head.sha // empty')
+            if [ -n "${head}" ]; then
+              runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${head}&event=pull_request&status=success&per_page=10" \
+                --jq '.workflow_runs[] | select(.path == ".github/workflows/ma-fork.yml") | .id')
+              for run in ${runs}; do
+                rm -rf build-info
+                gh run download "${run}" --repo "${GITHUB_REPOSITORY}" --name ma-build-info --dir build-info 2>/dev/null || continue
+                built_tree=$(sed -n 's/^MA_TREE=//p' build-info/VERSION.env)
+                jar=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run}/artifacts" \
+                  --jq '[.artifacts[] | select(.name == "ma-uberjar" and .expired == false)] | length')
+                if [ "${built_tree}" = "${tree}" ] && [ "${jar}" = "1" ]; then
+                  echo "Publishing the uberjar run ${run} built and checked from this exact tree."
+                  echo "reuse_run=${run}" >> "$GITHUB_OUTPUT"
+                  build false
+                  exit 0
+                fi
+              done
+            fi
+            echo "No pull request build of this exact tree: building it."
           fi
+          build true
 
   checks:
     name: Lint, type-check and test
@@ -162,11 +209,17 @@ jobs:
           grep -qi "^content-security-policy: sandbox allow-scripts; default-src 'none';" <<< "$headers" || fail "The page's policy is not the sealed one."
           grep -qi "require-trusted-types-for 'script'; trusted-types ma-graph;" <<< "$headers" || fail "The page's policy doesn't require Trusted Types."
           ! grep -qi '^x-frame-options:' <<< "$headers" || fail "X-Frame-Options would keep public and embedded dashboards from framing the page."
-      - name: Record the checksum and version
+      # MA_TREE is the source tree this build came from. A merge whose tree is
+      # the same publishes this build instead of building again.
+      - name: Record the checksum, version and source tree
         working-directory: ./target/uberjar
         run: |
           sha256sum metabase.jar > SHA256.sum
-          echo "MA_VERSION=${MA_VERSION}" > VERSION.env
+          {
+            echo "MA_VERSION=${MA_VERSION}"
+            echo "MA_TREE=$(git rev-parse 'HEAD^{tree}')"
+            echo "MA_BUILT_FROM=$(git rev-parse HEAD)"
+          } > VERSION.env
       - name: Keep the uberjar for publishing
         uses: actions/upload-artifact@v7
         with:
@@ -176,22 +229,39 @@ jobs:
             ./target/uberjar/metabase.jar
             ./target/uberjar/SHA256.sum
             ./target/uberjar/VERSION.env
+      - name: Keep the build's version and source tree
+        uses: actions/upload-artifact@v7
+        with:
+          name: ma-build-info
+          retention-days: 7
+          path: ./target/uberjar/VERSION.env
 
   # Kept apart from the build so that the token able to publish never runs
   # the build's third-party dependencies.
+  #
+  # It publishes this run's uberjar, or the one the merged pull request built
+  # from the same source tree (see the scope job).
   publish:
     name: Publish the release
-    needs: uberjar
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/ma-main' }}
+    needs: [scope, uberjar]
+    if: >-
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/ma-main' &&
+      needs.scope.result == 'success' &&
+      (needs.uberjar.result == 'success' ||
+       (needs.uberjar.result == 'skipped' && needs.scope.outputs.reuse_run != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Fetch the uberjar
         uses: actions/download-artifact@v8
         with:
           name: ma-uberjar
+          run-id: ${{ needs.scope.outputs.reuse_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -205,7 +275,7 @@ jobs:
             --target "${GITHUB_SHA}" \
             --title "${MA_VERSION}" \
             --draft \
-            --notes "Open-source Metabase ${MA_BASE_VERSION} with the Michael and Associates charts, built from ${GITHUB_SHA}.
+            --notes "Open-source Metabase ${MA_BASE_VERSION} with the Michael and Associates charts, built from ${MA_BUILT_FROM:-${GITHUB_SHA}}, whose source tree is ${MA_TREE:-that of ${GITHUB_SHA}}.
 
           SHA-256 of metabase.jar: \`${sha256}\`"
           gh release edit "${MA_VERSION}" --repo "${GITHUB_REPOSITORY}" --draft=false
