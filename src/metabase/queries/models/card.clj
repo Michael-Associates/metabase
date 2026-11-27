@@ -24,6 +24,7 @@
    [metabase.lib.schema :as lib.schema]
    [metabase.lib.schema.id :as lib.schema.id]
    [metabase.lib.schema.metadata :as lib.schema.metadata]
+   [metabase.ma-graph.core :as ma-graph]
    [metabase.metrics.core :as metrics]
    [metabase.models.db :as models.db]
    [metabase.models.interface :as mi]
@@ -1033,6 +1034,8 @@
 (t2/define-before-insert :model/Card
   [card]
   (check-timeline-visibility-permissions! card *copy-source-card*)
+  ;; Michael and Associates fork: only admins write custom graph code.
+  (ma-graph/check-graph-authoring! card *copy-source-card*)
   (u/prog1
     (-> card
         (assoc :metabase_version config/mb-version-string
@@ -1103,7 +1106,9 @@
         original (t2/original card)
         card     (normalize-card card)]
     (when (or (contains? changes :visualization_settings) (contains? changes :display))
-      (check-timeline-visibility-permissions! card original))
+      (check-timeline-visibility-permissions! card original)
+      ;; Michael and Associates fork: only admins write custom graph code.
+      (ma-graph/check-graph-authoring! card original))
     (collection/check-allowed-content (:type card) (:collection_id changes))
     (-> card
         (dissoc :verified-result-metadata?)

@@ -106,6 +106,15 @@ const emptyVizConfig: Record<SupportedDisplayType, EmptyVizConfig> = {
       return t`E.g., Count of leads grouped by Lead type, Booking type and Outcome`;
     },
   },
+  ma_graph: {
+    imgSrc: sankeyImage,
+    get primaryText() {
+      return t`Then shape the results for the graph: one row per thing it draws.`;
+    },
+    get secondaryText() {
+      return t`E.g., Count of customers grouped by Signup source and Stage`;
+    },
+  },
   ma_heatmap: {
     imgSrc: pivotImage,
     get primaryText() {

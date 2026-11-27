@@ -11,6 +11,7 @@
    [metabase.collections.models.collection :as collection]
    [metabase.lib-be.core :as lib-be]
    [metabase.lib.core :as lib]
+   [metabase.ma-graph.core :as ma-graph]
    [metabase.mcp.db :as mcp.db]
    [metabase.mcp.scope :as mcp.scope]
    [metabase.mcp.v2.common :as common]
@@ -224,13 +225,17 @@
    echoed as stored — a write that names it is otherwise unverifiable without a second read, and an
    update that leaves it alone still reports what the chart is drawing from."
   [card]
-  {:id                     (:id card)
-   :name                   (:name card)
-   :display                (name (:display card))
-   :collection_id          (:collection_id card)
-   :collection_path        (collection-path (:collection_id card))
-   :description            (:description card)
-   :visualization_settings (or (:visualization_settings card) {})})
+  (let [settings (or (:visualization_settings card) {})]
+    (cond-> {:id                     (:id card)
+             :name                   (:name card)
+             :display                (name (:display card))
+             :collection_id          (:collection_id card)
+             :collection_path        (collection-path (:collection_id card))
+             :description            (:description card)
+             ;; Michael and Associates fork: a custom graph's code is left out and its length reported instead, see
+             ;; [[ma-graph/without-own-graph-code]].
+             :visualization_settings (ma-graph/without-own-graph-code settings)}
+      (ma-graph/graph-code-length settings) (assoc :graph_code_characters (ma-graph/graph-code-length settings)))))
 
 (def ^:private visibility-type-strs
   "String form of `::lib.schema.metadata/column.visibility-type`'s enum — the args schema and the
@@ -448,7 +453,12 @@
                                                                        :collection_id (:collection-id dashboard))
                        (contains? args :collection_position)    (assoc :collection_position collection_position)
                        (contains? args :display)                (assoc :display (some-> display keyword))
-                       (contains? args :visualization_settings) (assoc :visualization_settings visualization_settings)
+                       ;; Michael and Associates fork: settings resent from a write response, which leaves a custom
+                       ;; graph's code out, keep the saved code. See [[ma-graph/keep-graph-code]].
+                       (contains? args :visualization_settings) (assoc :visualization_settings
+                                                                       (ma-graph/keep-graph-code
+                                                                        visualization_settings
+                                                                        (:visualization_settings card-before)))
                        (contains? args :cache_ttl)              (assoc :cache_ttl cache_ttl)
                        (contains? args :card_type)              (assoc :type (keyword card_type))
                        (contains? args :archived)               (assoc :archived (boolean archived))
@@ -554,7 +564,8 @@
    [:collection_position {:optional true}
     [:maybe [:int {:description "Pin position within the collection; omit to leave it unpinned."}]]]
    [:display {:optional true}
-    [:maybe {:description "Visualization type. learn(\"visualization-settings\") covers the choice."}
+    [:maybe {:description (str "Visualization type. learn(\"visualization-settings\") covers the choice; "
+                               "learn(\"custom-graphs\") covers ma_graph, a card drawn by an HTML page you write.")}
      common/card-display-enum]]
    [:visualization_settings {:optional true}
     [:maybe [:map {:description (str "Display settings for the chosen `display`; learn(\"visualization-settings\") "

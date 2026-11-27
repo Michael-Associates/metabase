@@ -23,6 +23,36 @@ staging, runs Metabase's official image and never this fork.
   chart picker: `register.ts`, `metabase-types/api/visualization.ts`,
   `viz-core/lib/sensibility.ts`, `EmptyVizState/utils.ts` and
   `embedding/mcp/utils/getMcpChartTypes.ts`.
+- Custom graphs (display `ma_graph`): a card whose visualization is a whole
+  HTML page, with inline scripts and styles, fed the card's live results. It
+  is how graphs built like our standalone HTML reports run inside Metabase.
+  - `frontend/src/metabase/visualizations/visualizations/MaGraph/`: the card,
+    which frames the page and hands it the graph and the results over a
+    private message channel, and the admin-only code editor in its settings.
+  - `src/metabase/ma_graph/` and `resources/ma_graph/frame.html`: the page a
+    graph runs in, at `/api/ma-graph/frame`. Its own Content-Security-Policy
+    sandboxes it into a unique origin, so a graph can't act as the signed-in
+    user, and blocks requests, images, fonts, forms, frames and WebRTC. Trusted
+    Types stop graph code from turning text into HTML or code, so a value in
+    the data can't run as script (Chrome and Edge enforce it). What it can't
+    block is the page navigating itself to a host the app allows in frames;
+    that takes code written to do it, and only admins write graph code.
+  - `src/metabase/ma_graph/core.clj`: only admins may save graph code, which
+    lives on cards only. The Card save hooks in `queries/models/card.clj`
+    refuse a non-admin write that adds, changes or removes it anywhere in the
+    settings, so the rule holds for the UI, the REST API and the MCP tools
+    alike. The DashboardCard save hooks in
+    `dashboards/models/dashboard_card.clj` drop any graph code a dashboard card
+    carries, for everyone.
+  - Metabase's built-in MCP server (`/api/metabase-mcp`): `ma_graph` in
+    `question_write`'s displays (`mcp/v2/common.clj`), a `custom-graphs` guide
+    in `learn` (`resources/mcp/v2/skills/custom-graphs/`, `mcp/v2/skills.clj`,
+    `mcp/v2/tools/learn.clj`) with the data contract, the sandbox rules and
+    our house style, and write responses that report the graph code's length
+    instead of echoing it. An update that leaves the code out keeps it.
+  - Smaller registrations: `api_routes/routes.clj`,
+    `dashboards/constants.cljc` (a full-width default size), and the
+    `ma-graph` module in `.clj-kondo/config/modules/config.edn`.
 - Branding, in Metabase's own files:
   - `common/components/LogoIcon/`: `MaLogoIcon.tsx` and its stylesheet draw
     the firm's "MA" icon, and `LogoIcon.tsx` uses it as the app's logo. The
@@ -37,7 +67,8 @@ staging, runs Metabase's official image and never this fork.
     version. Metabase's trademark line stays.
 - `.github/workflows/ma-fork.yml`: checks and builds every pull request, and
   publishes every merge as a release. It runs the unit tests of every folder
-  above.
+  above, the backend tests of custom graphs, and checks that the built
+  uberjar serves the graph page with its sealed policy.
 - `ma/deploy/Dockerfile` (added with the first release): what Railway runs.
   It is Metabase's official image of the same version with our uberjar in
   place of theirs, checked against the release's SHA-256.
@@ -45,9 +76,9 @@ staging, runs Metabase's official image and never this fork.
 Metabase's own workflow files are removed from `ma-main`, so only `ma-fork.yml`
 runs here. They would otherwise fire on our pull requests and releases.
 
-Heatmap and Flow cards show as tables in emailed subscriptions, Slack alerts
-and PDF exports: Metabase draws those on the server, which doesn't know our
-charts.
+Heatmap, Flow and custom graph cards show as tables in emailed subscriptions,
+Slack alerts and PDF exports: Metabase draws those on the server, which doesn't
+know our charts.
 
 ## How a change reaches the sandbox
 
@@ -62,11 +93,16 @@ charts.
 
 ## Rolling back
 
-Our changes are frontend only, so every build of the same Metabase version
-uses the same application database. To roll back, point `ma/deploy/Dockerfile`
-at an earlier release, or use Railway's rollback on the previous deployment.
-Going back to Metabase's official image also works: Heatmap and Flow cards
-then show as tables.
+None of our changes touch the application database's schema, so every build of
+the same Metabase version uses the same application database. To roll back,
+point `ma/deploy/Dockerfile` at an earlier release, or use Railway's rollback
+on the previous deployment.
+
+Going back to Metabase's official image also works: Heatmap, Flow and custom
+graph cards then show as tables. While it runs, though, nothing stops a
+non-admin from saving custom graph code through the API, and that code would
+run once the fork is back. After such a stretch, check custom graph cards'
+code before rolling forward.
 
 ## Upgrading to a new Metabase version
 

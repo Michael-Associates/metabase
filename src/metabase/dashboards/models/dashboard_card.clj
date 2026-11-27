@@ -5,6 +5,7 @@
    [metabase.dashboards.db :as dashboards.db]
    [metabase.dashboards.schema :as dashboards.schema]
    [metabase.lib.core :as lib]
+   [metabase.ma-graph.core :as ma-graph]
    [metabase.models.interface :as mi]
    [metabase.models.serialization :as serdes]
    [metabase.parameters.core :as parameters]
@@ -61,17 +62,27 @@
       validate-link-card-entity-id
       validate-click-behavior-target-ids))
 
+;; Michael and Associates fork: custom graph code lives on cards only. A dashcard never draws code of its own, so any it
+;; carries (copied in by "Reset to defaults" or the visualizer) is dropped for everyone. See [[metabase.ma-graph.core]].
+(defn- strip-graph-code
+  [dashcard]
+  (cond-> dashcard
+    (contains? dashcard :visualization_settings) (update :visualization_settings ma-graph/strip-graph-code)))
+
 (t2/define-before-insert :model/DashboardCard
   [dashcard]
   (-> (merge {:parameter_mappings     []
               :visualization_settings {}
               :inline_parameters      []}
              dashcard)
+      strip-graph-code
       validate-dashcard-on-write))
 
 (t2/define-before-update :model/DashboardCard
   [dashcard]
-  (validate-dashcard-on-write dashcard))
+  (-> dashcard
+      (cond-> (contains? (t2/changes dashcard) :visualization_settings) strip-graph-code)
+      validate-dashcard-on-write))
 
 ;;; Update visualizer dashboard cards in stats to have card id references instead of entity ids
 (t2/define-after-select :model/DashboardCard
