@@ -72,9 +72,16 @@ describe("HomeLayout", () => {
     it("should show the Michael and Associates background by default", () => {
       setup({ landingPageIllustration: "default" });
 
-      expect(
-        screen.getByTestId("ma-home-background").style.backgroundImage,
-      ).toContain("app/assets/img/ma-home-background.jpg");
+      const { style } = screen.getByTestId("ma-home-background");
+      expect(style.getPropertyValue("--ma-home-background-left")).toContain(
+        "app/assets/img/ma-home-background-left.jpg",
+      );
+      expect(style.getPropertyValue("--ma-home-background-right")).toContain(
+        "app/assets/img/ma-home-background-right.jpg",
+      );
+      expect(style.getPropertyValue("--ma-home-background-middle")).toContain(
+        "app/assets/img/ma-home-background-middle.png",
+      );
     });
 
     it("should not show an illustration when it is turned off", () => {

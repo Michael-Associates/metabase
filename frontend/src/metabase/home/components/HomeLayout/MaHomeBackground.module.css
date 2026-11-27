@@ -1,15 +1,35 @@
-/* Michael and Associates fork: the home page background. Lady Justice stands at the image's right edge, so the
-   image is anchored to the right and bottom and crops from the left on narrow screens. */
+/* Michael and Associates fork: the home page background, the firm's Lady Justice picture, whole at every size of the
+   page, whatever is open beside it. It always fits the page's height, so Lady Justice is never cut. The picture comes
+   in three files, split inside the plain stretch of its middle: the left part (the swooshes) at the page's left edge,
+   the right part (Lady Justice and the red band) at its right edge, and a one pixel wide slice of that middle under
+   both, stretched to fill whatever width lies between them. On a page narrower than the picture, the left part moves
+   left until it meets the right part, so the picture crops from the left, where only the swooshes are. */
 .background {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: right bottom;
+  container-type: size;
 }
 
-/* The image is a light drawing: in dark mode it stays a faint texture, so the page stays dark. */
+.picture {
+  position: absolute;
+  inset: 0;
+  background-image:
+    var(--ma-home-background-left), var(--ma-home-background-right),
+    var(--ma-home-background-middle);
+  background-repeat: no-repeat;
+  background-size:
+    auto 100%,
+    auto 100%,
+    100% 100%;
+  /* 1672 by 941 pixels is the whole picture's size. */
+  background-position:
+    min(0px, 100cqw - 100cqh * 1672 / 941) bottom,
+    right bottom,
+    left bottom;
+}
+
+/* The picture is a light drawing: in dark mode it stays a faint texture, so the page stays dark. */
 [data-mantine-color-scheme="dark"] .background {
   opacity: 0.12;
 }
