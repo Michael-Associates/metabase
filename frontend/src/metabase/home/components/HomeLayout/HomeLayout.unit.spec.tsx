@@ -72,15 +72,16 @@ describe("HomeLayout", () => {
     it("should show the Michael and Associates background by default", () => {
       setup({ landingPageIllustration: "default" });
 
+      // Root-relative: the stylesheet resolves a relative URL against its own location, not the page's.
       const { style } = screen.getByTestId("ma-home-background");
       expect(style.getPropertyValue("--ma-home-background-left")).toContain(
-        "app/assets/img/ma-home-background-left.jpg",
+        "url(/app/assets/img/ma-home-background-left.jpg)",
       );
       expect(style.getPropertyValue("--ma-home-background-right")).toContain(
-        "app/assets/img/ma-home-background-right.jpg",
+        "url(/app/assets/img/ma-home-background-right.jpg)",
       );
       expect(style.getPropertyValue("--ma-home-background-middle")).toContain(
-        "app/assets/img/ma-home-background-middle.png",
+        "url(/app/assets/img/ma-home-background-middle.png)",
       );
     });
 

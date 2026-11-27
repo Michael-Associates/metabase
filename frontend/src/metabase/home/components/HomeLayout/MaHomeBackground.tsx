@@ -6,11 +6,14 @@ import { getSubpathSafeUrl } from "metabase/urls";
 import S from "./MaHomeBackground.module.css";
 
 // Michael and Associates fork: the firm's Lady Justice background, in place of Metabase's lighthouse illustration.
-// The picture's three parts, which the stylesheet places so the whole picture shows at every page size.
+// The picture's three parts, which the stylesheet places so the whole picture shows at every page size. The paths
+// start at the site root: the stylesheet uses them through CSS variables, and a relative URL there resolves against
+// the stylesheet's own location (`/app/dist/`), not the page's `<base href>`.
 const PICTURE_PARTS = {
-  "--ma-home-background-left": "app/assets/img/ma-home-background-left.jpg",
-  "--ma-home-background-right": "app/assets/img/ma-home-background-right.jpg",
-  "--ma-home-background-middle": "app/assets/img/ma-home-background-middle.png",
+  "--ma-home-background-left": "/app/assets/img/ma-home-background-left.jpg",
+  "--ma-home-background-right": "/app/assets/img/ma-home-background-right.jpg",
+  "--ma-home-background-middle":
+    "/app/assets/img/ma-home-background-middle.png",
 };
 
 const getPictureStyle = () => {
