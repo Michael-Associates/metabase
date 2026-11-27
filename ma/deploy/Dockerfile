@@ -4,10 +4,10 @@
 FROM metabase/metabase:v0.65.3.7@sha256:70ad00d1f811edccee9b22c9a49a38aab3b9d23d06f438ea86078741e00b7e8a
 
 LABEL org.opencontainers.image.source="https://github.com/Michael-Associates/metabase" \
-      org.opencontainers.image.version="v0.65.3.7-ma.19"
+      org.opencontainers.image.version="v0.65.3.7-ma.29"
 
 RUN curl -fsSL --retry 5 --retry-delay 10 -o /tmp/metabase.jar \
-        "https://github.com/Michael-Associates/metabase/releases/download/v0.65.3.7-ma.19/metabase.jar" \
-    && echo "318ebffa893f8f4c1887182fef2d18fea8d8ab85f4e82011ef1ce195ec390663  /tmp/metabase.jar" | sha256sum -c - \
+        "https://github.com/Michael-Associates/metabase/releases/download/v0.65.3.7-ma.29/metabase.jar" \
+    && echo "1467f585ca7cdfa7a5ffddf5917558c013a59ee3e541ac293ed6b496364fe6b8  /tmp/metabase.jar" | sha256sum -c - \
     && mv /tmp/metabase.jar /app/metabase.jar \
     && chmod 644 /app/metabase.jar
