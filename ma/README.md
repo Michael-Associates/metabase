@@ -63,10 +63,15 @@ staging, runs Metabase's official image and never this fork.
   - `home/components/HomeGreeting/HomeGreeting.tsx`: "Welcome to the Michael
     and Associates Data Platform" in place of Metabase's random greetings.
   - `home/components/HomeLayout/`: `MaHomeBackground.tsx` and its stylesheet
-    fill the home page with the firm's Lady Justice background
-    (`resources/frontend_client/app/assets/img/ma-home-background.jpg`) in
-    place of Metabase's lighthouse lines; `HomeLayout.tsx` uses it and keeps
-    the greeting above it. The login page keeps the lighthouse.
+    fill the home page with the firm's Lady Justice background in place of
+    Metabase's lighthouse lines; `HomeLayout.tsx` uses it and keeps the
+    greeting above it. The login page keeps the lighthouse. The picture is
+    whole at every page size: it is split at column 1100, inside the plain
+    stretch of its middle, into `ma-home-background-left.jpg`,
+    `ma-home-background-right.jpg` and a one pixel wide
+    `ma-home-background-middle.png` (all in
+    `resources/frontend_client/app/assets/img/`); the stylesheet fits both
+    parts to the page's height and stretches the middle slice between them.
   - `home/components/HomeGreeting/`: the firm's icon (scales of justice with a
     chart, `resources/frontend_client/app/assets/img/ma-home-icon.png`) in
     place of Metabot's faces, next to the welcome line and on the setup guide
