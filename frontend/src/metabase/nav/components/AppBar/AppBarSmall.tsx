@@ -68,7 +68,13 @@ export const AppBarSmall = ({
   }, []);
 
   return (
-    <Box bg="background_page-primary">
+    // Michael and Associates fork: the firm's grey (GlobalStyles), Metabase's page color where it isn't set.
+    <Box
+      style={{
+        backgroundColor:
+          "var(--ma-color-chrome, var(--mb-color-background_page-primary))",
+      }}
+    >
       {isHeaderVisible && (
         <Box
           className={cx(S.navBar, {

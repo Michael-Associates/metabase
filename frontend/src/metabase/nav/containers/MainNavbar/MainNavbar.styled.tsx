@@ -22,7 +22,12 @@ export const Sidebar = styled.aside<{
   position: relative;
   flex-shrink: 0;
   align-items: center;
-  background-color: var(--mb-color-background_page-primary);
+  /* Michael and Associates fork: the left menu takes the firm's grey (GlobalStyles), or the page color where it isn't
+     set; right-hand panels such as the Metabot chat keep the page color. */
+  background-color: ${(props) =>
+    props.side === "left"
+      ? "var(--ma-color-chrome, var(--mb-color-background_page-primary))"
+      : "var(--mb-color-background_page-primary)"};
   z-index: 4;
   width: ${(props) => props.width ?? NAV_SIDEBAR_WIDTH};
   ${(props) =>

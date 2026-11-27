@@ -31,7 +31,12 @@ describe("HomeGreeting", () => {
     expect(
       screen.getByText("Welcome to the Michael and Associates Data Platform"),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: "Metabot" })).toHaveLength(2);
+    expect(
+      screen.getByRole("img", { name: "Michael and Associates Data Platform" }),
+    ).toHaveAttribute(
+      "src",
+      expect.stringContaining("app/assets/img/ma-home-icon.png"),
+    );
   });
 
   it("should render nothing when the welcome message is turned off", () => {

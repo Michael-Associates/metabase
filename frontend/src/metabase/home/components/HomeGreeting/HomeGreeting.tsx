@@ -1,13 +1,13 @@
-import cx from "classnames";
-import { useEffect, useState } from "react";
 import { t } from "ttag";
 
-import { MetabotLogo } from "metabase/common/components/MetabotLogo";
-import animationStyles from "metabase/css/core/animation.module.css";
 import { useSetting } from "metabase/settings";
-import { Flex, Text, Tooltip } from "metabase/ui";
+import { Flex, Text } from "metabase/ui";
+import { getSubpathSafeUrl } from "metabase/urls";
 
 import S from "./HomeGreeting.module.css";
+
+// Michael and Associates fork: the firm's icon, scales of justice with a chart.
+const ICON_PATH = "app/assets/img/ma-home-icon.png";
 
 export const HomeGreeting = (): JSX.Element | null => {
   const showGreeting = useSetting("show-metabot");
@@ -36,57 +36,12 @@ export const HomeGreeting = (): JSX.Element | null => {
   );
 };
 
-export const MetabotGreeting = () => {
-  const [buffer, setBuffer] = useState<string[]>([]);
-  const [isCooling, setIsCooling] = useState(false);
-  const [isCool, setIsCool] = useState(false);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      setBuffer((prevBuffer) => [...prevBuffer, event.key].slice(-10));
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  useEffect(() => {
-    if (isCoolEnough(buffer)) {
-      setTimeout(() => setIsCooling(true), 1);
-      setTimeout(() => setIsCool(true), 300);
-    }
-  }, [buffer]);
-
-  return (
-    <Tooltip
-      label={t`Don't tell anyone, but you're my favorite.`}
-      position="bottom"
-    >
-      <div className={S.greetingLogoContainer}>
-        <MetabotLogo
-          className={cx(S.greetingLogo, animationStyles.SpinOut, {
-            [S.isCool]: isCool,
-            [S.isNotCool]: !isCool,
-            [animationStyles.SpinOutActive]: isCooling,
-          })}
-          variant="cool"
-        />
-        <MetabotLogo
-          className={cx(S.greetingLogo, animationStyles.SpinOut, {
-            [S.isCool]: !isCool,
-            [S.isNotCool]: isCool,
-            [animationStyles.SpinOutActive]: isCooling,
-          })}
-          variant="happy"
-        />
-      </div>
-    </Tooltip>
-  );
-};
-
-const isCoolEnough = (buffer: string[]) => {
-  const currentBuffer = buffer.join("");
-  return (
-    currentBuffer ===
-    "ArrowUpArrowUpArrowDownArrowDownArrowLeftArrowRightArrowLeftArrowRightba"
-  );
-};
+// Michael and Associates fork: keeps Metabase's name, as the setup guide home page uses it too, but draws the firm's
+// icon wherever Metabot's faces were.
+export const MetabotGreeting = () => (
+  <img
+    className={S.greetingIcon}
+    src={getSubpathSafeUrl(ICON_PATH)}
+    alt={t`Michael and Associates Data Platform`}
+  />
+);

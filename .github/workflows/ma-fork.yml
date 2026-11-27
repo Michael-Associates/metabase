@@ -161,6 +161,9 @@ jobs:
           "frontend/src/metabase/app/nav/"
           "frontend/src/metabase/home/components/"
           "frontend/src/metabase/databases/components/DatabaseEngineList/"
+          "frontend/src/metabase/ui/colors/"
+          "frontend/src/metabase/nav/containers/MainNavbar/"
+          "frontend/src/metabase/styled-components/"
       # The backend of custom graphs: who may save graph code, the sealed page
       # graphs run in, and the MCP learn guides, which include ours.
       - name: Run backend tests for our changes
