@@ -34,10 +34,12 @@
                     (setting/get-value-of-type :boolean :metabot-enabled?))
   :export?    true)
 
+;; Michael and Associates fork: the chat assistant is Claude Brain (see [[ma-claude-brain-url]]). Without the
+;; ai-controls feature this setting can't be changed and reads as its default.
 (defsetting metabot-name
   (deferred-tru "The display name for Metabot, shown throughout the Metabase UI.")
   :type       :string
-  :default    "Metabot"
+  :default    "Claude Brain"
   :visibility :public
   :encryption :no
   :export?    true
@@ -52,10 +54,11 @@
   :export?    true
   :feature    :ai-controls)
 
+;; Michael and Associates fork: no Metabot drawings around Claude Brain's chat.
 (defsetting metabot-show-illustrations
   (deferred-tru "Whether to show Metabot illustrations in the UI.")
   :type       :boolean
-  :default    true
+  :default    false
   :visibility :public
   :encryption :no
   :export?    true
@@ -264,14 +267,46 @@
                   (validate-model-ref! new-value))
                 (setting/set-value-of-type! :string :llm-mini-model (llm.provider/canonical-model-ref new-value))))
 
+;;; ------------------------------------------------- Claude Brain -------------------------------------------------
+
+;; Michael and Associates fork: Claude Brain, the firm's own agent behind the chat panel (`ma/claude-brain/`, see
+;; [[metabase.metabot.claude-brain]]). Both are read from the environment only.
+
+(defsetting ma-claude-brain-url
+  (deferred-tru "Michael and Associates fork: the address of the Claude Brain service, which answers the chat panel in place of Metabot''s own agent.")
+  :type       :string
+  :visibility :internal
+  :encryption :no
+  :setter     :none
+  :export?    false
+  :doc        false)
+
+(defsetting ma-claude-brain-secret
+  (deferred-tru "Michael and Associates fork: the shared secret Metabase sends the Claude Brain service.")
+  :type       :string
+  :visibility :internal
+  :sensitive? true
+  :encryption :no
+  :setter     :none
+  :export?    false
+  :doc        false)
+
+(defn claude-brain-configured?
+  "Michael and Associates fork: whether Claude Brain answers the chat panel."
+  []
+  (not (or (str/blank? (ma-claude-brain-url))
+           (str/blank? (ma-claude-brain-secret)))))
+
 (defsetting llm-metabot-configured?
   "Whether the connection selected for Metabot has the credentials it needs."
   :type       :boolean
   :visibility :public
   :setter     :none
   :export?    false
-  :getter     #(llm.provider/connection-usable?
-                (llm.provider/model-ref->connection-key (llm-metabot-provider)))
+  ;; Michael and Associates fork: Claude Brain is the chat panel's agent, and needs no Metabot provider connection.
+  :getter     #(or (claude-brain-configured?)
+                   (llm.provider/connection-usable?
+                    (llm.provider/model-ref->connection-key (llm-metabot-provider))))
   :doc        false)
 
 (defsetting llm-metabot-supports-reasoning?

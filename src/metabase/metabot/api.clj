@@ -19,6 +19,7 @@
    [metabase.metabot.api.document]
    [metabase.metabot.api.metabot]
    [metabase.metabot.api.permissions]
+   [metabase.metabot.claude-brain :as claude-brain]
    [metabase.metabot.config :as metabot.config]
    [metabase.metabot.context :as metabot.context]
    [metabase.metabot.conversation-title :as conversation-title]
@@ -233,19 +234,28 @@
         (try
           (transduce xf
                      (streaming-writer-rf os canceled-chan canceled?)
-                     (agent/run-agent-loop
-                      (cond-> {:messages              messages
-                               :state                 state
-                               :metabot-id            metabot-id
-                               :conversation-id       conversation-id
-                               :profile-id            (keyword profile-id)
-                               :context               enriched-context
-                               :eval-session-id       eval-session-id
-                               :memory-atom           memory-atom
-                               :tracking-opts         {:session-id conversation-id}
-                               ;; A query a tool is running stops when the client goes away.
-                               :request-canceled-chan canceled-chan}
-                        debug? (assoc :debug? true))))
+                     ;; Michael and Associates fork: Claude Brain answers the chat panel and the Ask page in place of
+                     ;; Metabot's agent loop; everything around the loop (this stream, saving the turn) stays.
+                     (if (claude-brain/serves? profile-id)
+                       (claude-brain/run-turn {:conversation-id conversation-id
+                                               :profile-id      profile-id
+                                               :message         message
+                                               :history         history
+                                               :context         enriched-context
+                                               :canceled-chan   canceled-chan})
+                       (agent/run-agent-loop
+                        (cond-> {:messages              messages
+                                 :state                 state
+                                 :metabot-id            metabot-id
+                                 :conversation-id       conversation-id
+                                 :profile-id            (keyword profile-id)
+                                 :context               enriched-context
+                                 :eval-session-id       eval-session-id
+                                 :memory-atom           memory-atom
+                                 :tracking-opts         {:session-id conversation-id}
+                                 ;; A query a tool is running stops when the client goes away.
+                                 :request-canceled-chan canceled-chan}
+                          debug? (assoc :debug? true)))))
           (catch org.eclipse.jetty.io.EofException _
             (vreset! canceled? true)
             (log/debug "Client disconnected during native agent streaming"))

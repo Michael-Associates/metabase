@@ -73,7 +73,9 @@ export type DocumentEditorHost = EditorHost & {
  * stable.
  */
 export const documentEditorHost: DocumentEditorHost = {
-  capabilities: DEFAULT_EDITOR_CAPABILITIES,
+  // Michael and Associates fork: no "Ask Metabot" in documents. Writing in documents runs on Metabot's own agent, and
+  // Claude Brain answers this fork's chat instead.
+  capabilities: { ...DEFAULT_EDITOR_CAPABILITIES, canUseMetabot: false },
   selectors: {
     getCurrentDocument,
     getChildTargetId,

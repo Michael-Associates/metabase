@@ -16,7 +16,6 @@ import {
 } from "metabase/current-user";
 import { getHasDatabaseWithActionsEnabled } from "metabase/databases/utils/predicates";
 import { openEmbedJsWizard } from "metabase/embedding/store/embed-setup-modal";
-import { useUserMetabotPermissions } from "metabase/metabot/hooks";
 import { PLUGIN_DATA_APPS } from "metabase/plugins";
 import { useDispatch, useSelector } from "metabase/redux";
 import { openDiagnostics } from "metabase/redux/app";
@@ -98,7 +97,6 @@ export const useCommandPaletteBasicActions = ({
 
   const hasDataAccess = useSelector(canUserCreateQueries);
   const hasNativeWrite = useSelector(canUserCreateNativeQueries);
-  const { hasNlqAccess } = useUserMetabotPermissions();
   const hasDatabaseWithActionsEnabled =
     getHasDatabaseWithActionsEnabled(databases);
 
@@ -151,18 +149,8 @@ export const useCommandPaletteBasicActions = ({
       });
     }
 
-    if (hasDataAccess && hasNlqAccess) {
-      actions.push({
-        id: "create-new-research",
-        name: t`New research`,
-        section: "basic",
-        icon: "telescope",
-        perform: () => {
-          dispatch(closeModal());
-          navigate(Urls.newExploration());
-        },
-      });
-    }
+    // Michael and Associates fork: no "New research". Explorations run on Metabot's own agent, and Claude Brain
+    // answers this fork's chat instead.
 
     actions.push({
       id: "create-new-dashboard",
@@ -336,7 +324,6 @@ export const useCommandPaletteBasicActions = ({
     hasDataAccess,
     hasDataStudioAccess,
     hasNativeWrite,
-    hasNlqAccess,
     collectionId,
     openNewModal,
     isAdmin,
