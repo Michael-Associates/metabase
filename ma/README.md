@@ -87,9 +87,16 @@ know our charts.
 2. Merge it. The workflow builds the uberjar again and publishes it as a GitHub
    release named like `v0.65.3.7-ma.12`, with its SHA-256 in the notes.
 3. Open a second pull request that points `ma/deploy/Dockerfile` at that release
-   and its SHA-256, and merge it. The `metabase-fork` service in the Metabase
+   and its SHA-256, and merge it. Its checks skip the build, since the release
+   was built and checked in step 2. The `metabase-fork` service in the Metabase
    Fork Sandbox Railway project watches `ma/deploy/` on `ma-main` and
    redeploys.
+
+Keep CI runs few. GitHub pauses a fork's workflows when its Actions usage runs
+high ("Workflows are not currently being run on this fork due to the scale of
+GitHub Actions usage"), and a repository admin then has to re-enable them on
+the repository's Actions page. Push a pull request's fixes together rather than
+one at a time: every push runs the full checks and the uberjar build.
 
 ## Rolling back
 
